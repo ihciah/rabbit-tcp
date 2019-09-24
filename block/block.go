@@ -12,6 +12,7 @@ const (
 	BLOCK_TYPE_DATA
 
 	BLOCK_HEADER_SIZE = 1 + 4 + 4 + 2
+	BLOCK_DATA_SIZE   = 1000
 )
 
 type Block struct {
@@ -45,4 +46,61 @@ func NewBlockFromReader(reader io.Reader) *Block {
 	io.ReadFull(reader, block.BlockData)
 	// TODO: error handle
 	return &block
+}
+
+func NewConnectBlock(connectID uint32, address string) Block {
+	data := []byte(address)
+	return Block{
+		Type:         BLOCK_TYPE_CONNECT,
+		ConnectionID: connectID,
+		BlockID:      0,
+		BlockLength:  uint16(len(data)),
+		BlockData:    data,
+	}
+}
+
+func NewRegBlock(clientID uint16) Block {
+	data := make([]byte, 2)
+	binary.LittleEndian.PutUint16(data, clientID)
+	return Block{
+		Type:         BLOCK_TYPE_REG,
+		ConnectionID: 0,
+		BlockID:      0,
+		BlockLength:  uint16(len(data)),
+		BlockData:    data,
+	}
+}
+
+func newDataBlock(connectID uint32, blockID uint32, data []byte) Block {
+	return Block{
+		Type:         BLOCK_TYPE_DATA,
+		ConnectionID: connectID,
+		BlockID:      blockID,
+		BlockLength:  uint16(len(data)),
+		BlockData:    data,
+	}
+}
+
+func NewDataBlocks(connectID uint32, blockID uint32, data []byte) []Block {
+	blocks := make([]Block, 0)
+	for cursor := 0; cursor < len(data); {
+		end := cursor + BLOCK_DATA_SIZE
+		if len(data) < end {
+			end = len(data)
+		}
+		blocks = append(blocks, newDataBlock(connectID, blockID, data[cursor:end]))
+		blockID += 1
+		cursor = end
+	}
+	return blocks
+}
+
+func NewDisconnectBlock(connectID uint32) Block {
+	return Block{
+		Type:         BLOCK_TYPE_DISCONNECT,
+		ConnectionID: connectID,
+		BlockID:      0,
+		BlockLength:  0,
+		BlockData:    make([]byte, 0),
+	}
 }

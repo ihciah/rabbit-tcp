@@ -14,27 +14,27 @@ const (
 
 type Pool struct {
 	lock       sync.RWMutex
-	nodeID     uint32
+	ClientID   uint32
 	timeoutSec uint
 	sendBuffer chan block.Block
 	recvBuffer chan block.Block
 	Manager    Manager
-	Tunnels    []Worker
+	Workers    []Worker
 }
 
-func NewDefaultPool(nodeID uint32) *Pool {
+func NewDefaultPool(clientID uint32) *Pool {
 	pool := &Pool{
-		nodeID:     nodeID,
+		ClientID:   clientID,
 		timeoutSec: TIMEOUT_SEC,
 		sendBuffer: make(chan block.Block, SEND_BUFFER),
 		recvBuffer: make(chan block.Block, RECV_BUFFER),
-		Tunnels:    make([]Worker, 0),
+		Workers:    make([]Worker, 0),
 	}
 	return pool
 }
 
-func NewClientPool(dest string, nodeID uint32, cipher tunnel.Cipher, createWaitSec []uint) *Pool {
-	pool := NewDefaultPool(nodeID)
+func NewClientPool(dest string, clientID uint32, cipher tunnel.Cipher, createWaitSec []uint) *Pool {
+	pool := NewDefaultPool(clientID)
 	pool.Manager = NewClientManager(pool, dest, cipher, createWaitSec)
 	go pool.Manager.Daemon()
 	return pool
@@ -64,7 +64,7 @@ func (p *Pool) RecvBlock() block.Block {
 
 func (p *Pool) RegisterWorker(worker Worker) {
 	p.lock.Lock()
-	p.Tunnels = append(p.Tunnels, worker)
+	p.Workers = append(p.Workers, worker)
 	worker.StartRecv(p.recvBuffer)
 	worker.StartSend(p.sendBuffer)
 	p.lock.Unlock()
@@ -72,10 +72,10 @@ func (p *Pool) RegisterWorker(worker Worker) {
 
 func (p *Pool) UnregisterWorker(worker Worker) {
 	p.lock.Lock()
-	for i, v := range p.Tunnels {
+	for i, v := range p.Workers {
 		if v == worker {
-			p.Tunnels[i] = p.Tunnels[len(p.Tunnels)-1]
-			p.Tunnels = p.Tunnels[:len(p.Tunnels)-1]
+			p.Workers[i] = p.Workers[len(p.Workers)-1]
+			p.Workers = p.Workers[:len(p.Workers)-1]
 			break
 		}
 	}
@@ -83,8 +83,8 @@ func (p *Pool) UnregisterWorker(worker Worker) {
 	p.lock.Unlock()
 }
 
-func (p *Pool) GetTunnelSize() int {
+func (p *Pool) GetWorkerCount() int {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
-	return len(p.Tunnels)
+	return len(p.Workers)
 }

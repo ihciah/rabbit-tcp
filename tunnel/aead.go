@@ -28,7 +28,6 @@ var aeadList = map[string]struct {
 	aeadChacha20Poly1305: {32, chacha20Poly1305},
 }
 
-
 func makeAESGCM(key []byte) (cipher.AEAD, error) {
 	blk, err := aes.NewCipher(key)
 	if err != nil {
@@ -47,7 +46,6 @@ func aesGCM(psk []byte) (Cipher, error) {
 	}
 	return &metaCipher{psk: psk, makeAEAD: makeAESGCM}, nil
 }
-
 
 // chacha20Poly1305 creates a new Cipher with a pre-shared key. len(psk)
 // must be 32.
@@ -72,7 +70,7 @@ func NewAEADCipher(name string, key []byte, password string) (Cipher, error) {
 	}
 
 	if choice, ok := aeadList[name]; ok {
-		if len(key) == 0 {
+		if key == nil || len(key) == 0 {
 			key = kdf(password, choice.KeySize)
 		}
 		if len(key) != choice.KeySize {

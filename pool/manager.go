@@ -86,7 +86,7 @@ func (man *ClientManager) keepPoolFull() {
 	if i < 0 {
 		return
 	}
-	tunnelToCreate := i - man.Pool.GetTunnelSize()
+	tunnelToCreate := i - man.Pool.GetWorkerCount()
 
 	for i = 0; i < tunnelToCreate; {
 		err := man.createTunnel()
@@ -98,7 +98,7 @@ func (man *ClientManager) keepPoolFull() {
 	}
 }
 
-// Create a tunnel and reg it; then add it to Tunnels
+// Create a tunnel and reg it; then add it to Workers
 func (man *ClientManager) createTunnel() error {
 	conn, err := net.Dial("tcp", man.dest)
 	if err != nil {
