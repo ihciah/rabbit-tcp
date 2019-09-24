@@ -1,15 +1,15 @@
 package rabbit_tcp
 
 import (
+	"github.com/ihciah/rabbit-tcp/config"
 	"github.com/ihciah/rabbit-tcp/connection"
 	"github.com/ihciah/rabbit-tcp/pool"
 	"net"
 )
 
-func NewRabbitTCP(config Config) *RabbitTCP {
-	// TODO: Initialize:
-	// 1. Use config to create pool
-	connPool := pool.NewPool()
+func NewRabbitTCPClient(config config.Config) *RabbitTCP {
+	// TODO: Use config to create pool
+	connPool := pool.NewClientPool()
 	return &RabbitTCP{
 		Config: config,
 		Pool:   connPool,
@@ -17,7 +17,7 @@ func NewRabbitTCP(config Config) *RabbitTCP {
 }
 
 type RabbitTCP struct {
-	Config Config
+	Config config.Config
 	Pool   *pool.Pool
 }
 
