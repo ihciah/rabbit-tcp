@@ -266,5 +266,5 @@ func (c *streamConn) ReadFrom(r io.Reader) (int64, error) {
 	return c.w.ReadFrom(r)
 }
 
-// NewConn wraps a stream-oriented net.Conn with cipher.
-func NewTunnel(c net.Conn, ciph Cipher) net.Conn { return &streamConn{Conn: c, Cipher: ciph} }
+// NewEncryptedConn wraps a stream-oriented net.Conn with cipher.
+func NewEncryptedConn(c net.Conn, ciph Cipher) net.Conn { return &streamConn{Conn: c, Cipher: ciph} }

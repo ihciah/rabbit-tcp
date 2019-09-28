@@ -9,9 +9,9 @@ type Config struct {
 }
 
 func LoadConfigFromFile(filePath string) Config {
-
+	return Config{}
 }
 
 func LoadDefaultConfig() Config {
-
+	return Config{}
 }

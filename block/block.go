@@ -11,7 +11,7 @@ const (
 	BLOCK_TYPE_DISCONNECT
 	BLOCK_TYPE_DATA
 
-	BLOCK_HEADER_SIZE = 1 + 4 + 4 + 2
+	BLOCK_HEADER_SIZE = 1 + 4 + 4 + 4
 	BLOCK_DATA_SIZE   = 1000
 )
 
@@ -19,7 +19,7 @@ type Block struct {
 	Type         uint8  // 1 byte
 	ConnectionID uint32 // 4 bytes
 	BlockID      uint32 // 4 bytes
-	BlockLength  uint16 // 2 bytes
+	BlockLength  uint32 // 4 bytes
 	BlockData    []byte
 }
 
@@ -28,7 +28,7 @@ func (block *Block) Pack() []byte {
 	packedData[0] = block.Type
 	binary.LittleEndian.PutUint32(packedData[1:], block.ConnectionID)
 	binary.LittleEndian.PutUint32(packedData[5:], block.BlockID)
-	binary.LittleEndian.PutUint16(packedData[9:], block.BlockLength)
+	binary.LittleEndian.PutUint32(packedData[9:], block.BlockLength)
 	copy(packedData[BLOCK_HEADER_SIZE:], block.BlockData)
 	return packedData
 }
@@ -41,7 +41,7 @@ func NewBlockFromReader(reader io.Reader) *Block {
 	block.Type = headerBuf[0]
 	block.ConnectionID = binary.LittleEndian.Uint32(headerBuf[1:])
 	block.BlockID = binary.LittleEndian.Uint32(headerBuf[5:])
-	block.BlockLength = binary.LittleEndian.Uint16(headerBuf[9:])
+	block.BlockLength = binary.LittleEndian.Uint32(headerBuf[9:])
 	block.BlockData = make([]byte, block.BlockLength)
 	io.ReadFull(reader, block.BlockData)
 	// TODO: error handle
@@ -54,19 +54,19 @@ func NewConnectBlock(connectID uint32, address string) Block {
 		Type:         BLOCK_TYPE_CONNECT,
 		ConnectionID: connectID,
 		BlockID:      0,
-		BlockLength:  uint16(len(data)),
+		BlockLength:  uint32(len(data)),
 		BlockData:    data,
 	}
 }
 
-func NewRegBlock(clientID uint16) Block {
-	data := make([]byte, 2)
-	binary.LittleEndian.PutUint16(data, clientID)
+func NewRegBlock(clientID uint32) Block {
+	data := make([]byte, 4)
+	binary.LittleEndian.PutUint32(data, clientID)
 	return Block{
 		Type:         BLOCK_TYPE_REG,
 		ConnectionID: 0,
 		BlockID:      0,
-		BlockLength:  uint16(len(data)),
+		BlockLength:  uint32(len(data)),
 		BlockData:    data,
 	}
 }
@@ -76,7 +76,7 @@ func newDataBlock(connectID uint32, blockID uint32, data []byte) Block {
 		Type:         BLOCK_TYPE_DATA,
 		ConnectionID: connectID,
 		BlockID:      blockID,
-		BlockLength:  uint16(len(data)),
+		BlockLength:  uint32(len(data)),
 		BlockData:    data,
 	}
 }

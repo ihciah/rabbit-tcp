@@ -6,7 +6,7 @@ type LoopByteBuffer struct {
 	tail   int
 }
 
-func NewLoopBuffer(size uint16) LoopByteBuffer {
+func NewLoopBuffer(size uint32) LoopByteBuffer {
 	buffer := make([]byte, size)
 	return LoopByteBuffer{
 		buffer: buffer,

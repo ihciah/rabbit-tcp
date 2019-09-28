@@ -2,8 +2,8 @@ package rabbit_tcp
 
 import (
 	"github.com/ihciah/rabbit-tcp/config"
-	"github.com/ihciah/rabbit-tcp/connection"
-	"github.com/ihciah/rabbit-tcp/pool"
+	"github.com/ihciah/rabbit-tcp/connection_old"
+	"github.com/ihciah/rabbit-tcp/pool_old"
 	"github.com/ihciah/rabbit-tcp/tunnel"
 	"math/rand"
 	"net"
@@ -11,19 +11,19 @@ import (
 
 type RabbitTCPClient struct {
 	Config      config.Config
-	ConnManager *connection.Manager
+	ConnManager *connection_old.Manager
 }
 
 func NewRabbitTCPClient(config config.Config) *RabbitTCPClient {
 	// TODO: Use config to create pool
 	cipher, _ := tunnel.NewAEADCipher("CHACHA20-IETF-POLY1305", nil, "password")
-	connPool := pool.NewClientPool(
+	connPool := pool_old.NewClientPool(
 		"127.0.0.1:12345",
 		rand.Uint32(),
 		cipher,
-		[]uint{1},
+		[]uint{2},
 	)
-	connManager := connection.NewConnectionManager(connPool)
+	connManager := connection_old.NewConnectionManager(connPool)
 	return &RabbitTCPClient{
 		Config:      config,
 		ConnManager: connManager,
@@ -31,17 +31,17 @@ func NewRabbitTCPClient(config config.Config) *RabbitTCPClient {
 }
 
 func (r *RabbitTCPClient) Dial(address string) (net.Conn, error) {
-	return connection.NewRabbitTCPConn(r.ConnManager, address)
+	return connection_old.NewRabbitTCPConn(r.ConnManager, address)
 }
 
 type RabbitTCPServer struct {
 	Config    config.Config
-	Collector connection.Collector
+	Collector connection_old.Collector
 }
 
 func NewRabbitTCPServer(config config.Config) *RabbitTCPServer {
 	cipher, _ := tunnel.NewAEADCipher("CHACHA20-IETF-POLY1305", nil, "password")
-	collector := connection.NewCollector(cipher)
+	collector := connection_old.NewCollector(cipher)
 	return &RabbitTCPServer{
 		Config:    config,
 		Collector: collector,

@@ -1,20 +1,23 @@
-package connection
+package connection_old
 
 import (
 	"github.com/ihciah/rabbit-tcp/block"
-	"github.com/ihciah/rabbit-tcp/pool"
+	"github.com/ihciah/rabbit-tcp/pool_old"
+	"log"
 )
 
 type Manager struct {
-	*pool.Pool
+	*pool_old.Pool
 	connJoiner map[uint32]*BlockJoiner
 }
 
-func NewConnectionManager(pool *pool.Pool) *Manager {
-	return &Manager{
+func NewConnectionManager(pool *pool_old.Pool) *Manager {
+	man := &Manager{
 		Pool:       pool,
 		connJoiner: make(map[uint32]*BlockJoiner),
 	}
+	man.RecvDaemon()
+	return man
 }
 
 // pack data to block and send
@@ -35,6 +38,7 @@ func (m *Manager) Connect(conn *RabbitTCPConn, address string) {
 	blockJoiner := NewBlockJoiner(conn)
 	m.connJoiner[conn.connectionID] = blockJoiner
 	m.Pool.SendBlock(connBlock)
+	log.Println("Connect block sent")
 }
 
 func (m *Manager) Disconnect(conn *RabbitTCPConn) {
@@ -43,18 +47,20 @@ func (m *Manager) Disconnect(conn *RabbitTCPConn) {
 	}
 	disconnectBlock := block.NewDisconnectBlock(conn.connectionID)
 	m.Pool.SendBlock(disconnectBlock)
+	log.Println("Disconnect block sent")
 }
 
 func (m *Manager) recv() {
 	blk := m.Pool.RecvBlock()
 	switch blk.Type {
 	case block.BLOCK_TYPE_CONNECT:
+		log.Println("Receive a connect block")
 		// TODO
 	case block.BLOCK_TYPE_DISCONNECT:
-		// TODO
-	case block.BLOCK_TYPE_REG:
+		log.Println("Receive a disconnect block")
 		// TODO
 	case block.BLOCK_TYPE_DATA:
+		log.Println("Receive a data block")
 		// receive a block from pool's recvBuffer
 		// loop up mapping to find a {connection, joinMapping}
 		// put block to joinMapping
