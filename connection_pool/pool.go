@@ -5,6 +5,7 @@ import (
 	"github.com/ihciah/rabbit-tcp/block"
 	"github.com/ihciah/rabbit-tcp/connection"
 	"github.com/ihciah/rabbit-tcp/tunnel_pool"
+	"net"
 )
 
 const (
@@ -36,6 +37,20 @@ func NewConnectionPool(manager Manager, pool *tunnel_pool.TunnelPool) Connection
 	return cp
 }
 
+func (cp *ConnectionPool) NewInboundConnection() connection.Connection {
+	c := connection.NewInboundConnection(cp.sendQueue)
+	return c
+}
+
+func (cp *ConnectionPool) NewOutboundConnection(connectionID uint32, address string) (connection.Connection, error) {
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		return nil, err
+	}
+	c := connection.NewOutboundConnectionWithID(conn, connectionID, cp.sendQueue)
+	return c, nil
+}
+
 func (cp *ConnectionPool) AddConnection(conn connection.Connection) {
 	// 1. add to map
 	// 2.
@@ -53,7 +68,7 @@ func (cp *ConnectionPool) RecvRelay() {
 		case blk := <-cp.tunnelPool.GetRecvQueue():
 			connID := blk.ConnectionID
 			if conn, ok := cp.connectionMapping[connID]; ok {
-				conn.RecvBlock(blk)
+				conn.GetRecvQueue() <- blk
 			}
 		case <-cp.ctx.Done():
 			return

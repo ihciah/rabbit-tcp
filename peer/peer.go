@@ -15,6 +15,6 @@ func (p *Peer) AddConnection() {
 
 }
 
-func (p *Peer) AddTunnel() {
+func (p *Peer) AddTunnel(tunnel tunnel_pool.Tunnel) {
 
 }

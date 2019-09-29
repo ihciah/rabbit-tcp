@@ -5,10 +5,10 @@ import (
 	"sync"
 )
 
-// 1. Join blocks from chan to connection dataQueue
+// 1. Join blocks from chan to connection orderedRecvQueue
 // 2. Send bytes or control block
 type blockProcessor struct {
-	conn            *Connection
+	conn            Connection
 	cache           map[uint32]block.Block
 	sendBlockIDLock sync.Mutex
 	recvBlockIDLock sync.Mutex
@@ -16,7 +16,7 @@ type blockProcessor struct {
 	recvBlockID     uint32
 }
 
-func newBlockProcessor(conn *Connection) blockProcessor {
+func newBlockProcessor(conn Connection) blockProcessor {
 	return blockProcessor{
 		conn:        conn,
 		cache:       make(map[uint32]block.Block),
@@ -26,17 +26,17 @@ func newBlockProcessor(conn *Connection) blockProcessor {
 }
 
 func (x *blockProcessor) RecvBlock(blk block.Block) {
-	x.conn.recvQueue <- blk
+	x.conn.GetRecvQueue() <- blk
 }
 
 func (x *blockProcessor) SendBlock(blk block.Block) {
 	// Put block into connectionPool sendQueue
-	x.conn.sendQueue <- blk
+	x.conn.GetSendQueue() <- blk
 }
 
 func (x *blockProcessor) SendData(data []byte) {
 	x.sendBlockIDLock.Lock()
-	blocks := block.NewDataBlocks(x.conn.connectionID, x.sendBlockID, data)
+	blocks := block.NewDataBlocks(x.conn.GetConnectionID(), x.sendBlockID, data)
 	x.sendBlockID += uint32(len(blocks))
 	x.sendBlockIDLock.Unlock()
 	for _, blk := range blocks {
@@ -50,7 +50,7 @@ func (x *blockProcessor) SendConnect(address string) {
 	x.sendBlockID += 1
 	x.sendBlockIDLock.Unlock()
 
-	blk := block.NewConnectBlock(x.conn.connectionID, blkID, address)
+	blk := block.NewConnectBlock(x.conn.GetConnectionID(), blkID, address)
 	x.SendBlock(blk)
 }
 
@@ -60,23 +60,23 @@ func (x *blockProcessor) SendDisconnect() {
 	x.sendBlockID += 1
 	x.sendBlockIDLock.Unlock()
 
-	blk := block.NewDisconnectBlock(x.conn.connectionID, blkID)
+	blk := block.NewDisconnectBlock(x.conn.GetConnectionID(), blkID)
 	x.SendBlock(blk)
 }
 
 // Join blocks and send buffer to connection
-func (x *blockProcessor) Daemon(connection *Connection) {
+func (x *blockProcessor) Daemon(connection Connection) {
 	for {
-		blk := <-x.conn.recvQueue
+		blk := <-x.conn.GetRecvQueue()
 		if x.recvBlockID == blk.BlockID {
-			connection.dataQueue <- blk
+			connection.GetOrderedRecvQueue() <- blk
 			x.recvBlockID++
 			for {
 				blk, ok := x.cache[x.recvBlockID]
 				if !ok {
 					break
 				}
-				connection.dataQueue <- blk
+				connection.GetOrderedRecvQueue() <- blk
 				delete(x.cache, x.recvBlockID)
 				x.recvBlockID++
 			}
