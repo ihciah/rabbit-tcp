@@ -6,8 +6,7 @@ import (
 )
 
 const (
-	BLOCK_TYPE_REG = iota
-	BLOCK_TYPE_CONNECT
+	BLOCK_TYPE_CONNECT = iota
 	BLOCK_TYPE_DISCONNECT
 	BLOCK_TYPE_DATA
 
@@ -48,29 +47,18 @@ func NewBlockFromReader(reader io.Reader) *Block {
 	return &block
 }
 
-func NewConnectBlock(connectID uint32, address string) Block {
+func NewConnectBlock(connectID uint32, blockID uint32, address string) Block {
 	data := []byte(address)
 	return Block{
 		Type:         BLOCK_TYPE_CONNECT,
 		ConnectionID: connectID,
-		BlockID:      0,
+		BlockID:      blockID,
 		BlockLength:  uint32(len(data)),
 		BlockData:    data,
 	}
 }
 
-func NewRegBlock(clientID uint32) Block {
-	data := make([]byte, 4)
-	binary.LittleEndian.PutUint32(data, clientID)
-	return Block{
-		Type:         BLOCK_TYPE_REG,
-		ConnectionID: 0,
-		BlockID:      0,
-		BlockLength:  uint32(len(data)),
-		BlockData:    data,
-	}
-}
-
+// Empty dataBlock means EOF
 func newDataBlock(connectID uint32, blockID uint32, data []byte) Block {
 	return Block{
 		Type:         BLOCK_TYPE_DATA,
@@ -95,11 +83,11 @@ func NewDataBlocks(connectID uint32, blockID uint32, data []byte) []Block {
 	return blocks
 }
 
-func NewDisconnectBlock(connectID uint32) Block {
+func NewDisconnectBlock(connectID uint32, blockID uint32) Block {
 	return Block{
 		Type:         BLOCK_TYPE_DISCONNECT,
 		ConnectionID: connectID,
-		BlockID:      0,
+		BlockID:      blockID,
 		BlockLength:  0,
 		BlockData:    make([]byte, 0),
 	}

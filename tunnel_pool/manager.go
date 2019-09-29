@@ -40,7 +40,12 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 			time.Sleep(ErrorWaitSec * time.Second)
 			continue
 		}
-		tun := NewTunnel(conn, cm.cipher)
+		tun, err := NewTunnel(conn, cm.cipher)
+		if err != nil {
+			cm.logger.Printf("Can not create tunnel. Cause: %s\n", err)
+			time.Sleep(ErrorWaitSec * time.Second)
+			continue
+		}
 		pool.AddTunnel(tun)
 		cm.logger.Printf("Successfully dialed to %s. TunnelToCreate: %d\n", cm.endpoint, tunnelToCreate)
 	}

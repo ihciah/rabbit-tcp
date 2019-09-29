@@ -14,7 +14,9 @@ func NewLoopBuffer(size uint32) LoopByteBuffer {
 }
 
 func (lb *LoopByteBuffer) OverWrite(data []byte) {
-	// data must be smaller than recvBuffer
+	if len(lb.buffer) < len(data) {
+		lb.buffer = make([]byte, len(data))
+	}
 	n := copy(lb.buffer, data)
 	lb.head = 0
 	lb.tail = n
