@@ -1,6 +1,7 @@
 package connection
 
 import (
+	"context"
 	"github.com/ihciah/rabbit-tcp/block"
 	"sync"
 )
@@ -10,6 +11,7 @@ import (
 type blockProcessor struct {
 	conn            Connection
 	cache           map[uint32]block.Block
+	cancel          context.CancelFunc
 	sendBlockIDLock sync.Mutex
 	recvBlockIDLock sync.Mutex
 	sendBlockID     uint32
@@ -66,22 +68,34 @@ func (x *blockProcessor) SendDisconnect() {
 
 // Join blocks and send buffer to connection
 func (x *blockProcessor) Daemon(connection Connection) {
+	var ctx context.Context
+	ctx, x.cancel = context.WithCancel(context.Background())
 	for {
-		blk := <-x.conn.GetRecvQueue()
-		if x.recvBlockID == blk.BlockID {
-			connection.GetOrderedRecvQueue() <- blk
-			x.recvBlockID++
-			for {
-				blk, ok := x.cache[x.recvBlockID]
-				if !ok {
-					break
-				}
+		select {
+		case blk := <-x.conn.GetRecvQueue():
+			if x.recvBlockID == blk.BlockID {
 				connection.GetOrderedRecvQueue() <- blk
-				delete(x.cache, x.recvBlockID)
 				x.recvBlockID++
+				for {
+					blk, ok := x.cache[x.recvBlockID]
+					if !ok {
+						break
+					}
+					connection.GetOrderedRecvQueue() <- blk
+					delete(x.cache, x.recvBlockID)
+					x.recvBlockID++
+				}
+			} else {
+				x.cache[blk.BlockID] = blk
 			}
-		} else {
-			x.cache[blk.BlockID] = blk
+		case <-ctx.Done():
+			return
 		}
+	}
+}
+
+func (x *blockProcessor) CancelDaemon() {
+	if x.cancel != nil {
+		x.cancel()
 	}
 }

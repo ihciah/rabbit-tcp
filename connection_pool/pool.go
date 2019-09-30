@@ -39,6 +39,7 @@ func NewConnectionPool(manager Manager, pool *tunnel_pool.TunnelPool) Connection
 
 func (cp *ConnectionPool) NewInboundConnection() connection.Connection {
 	c := connection.NewInboundConnection(cp.sendQueue)
+	cp.AddConnection(c)
 	return c
 }
 
@@ -52,13 +53,17 @@ func (cp *ConnectionPool) NewOutboundConnection(connectionID uint32, address str
 }
 
 func (cp *ConnectionPool) AddConnection(conn connection.Connection) {
-	// 1. add to map
-	// 2.
-
+	// TODO: thread safe
+	cp.connectionMapping[conn.GetConnectionID()] = conn
+	go conn.Daemon(conn)
 }
 
 func (cp *ConnectionPool) RemoveConnection(conn connection.Connection) {
-
+	// TODO: thread safe
+	if _, ok := cp.connectionMapping[conn.GetConnectionID()]; ok {
+		delete(cp.connectionMapping, conn.GetConnectionID())
+		conn.CancelDaemon()
+	}
 }
 
 // Deliver blocks from tunnelPool channel to specified connections

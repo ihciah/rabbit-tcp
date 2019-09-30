@@ -5,6 +5,7 @@ import (
 	"github.com/ihciah/rabbit-tcp/tunnel"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"time"
 )
@@ -19,12 +20,21 @@ type Manager interface {
 	DecreaseNotify(pool *TunnelPool) // When TunnelPool size decreased, DecreaseNotify should be called
 }
 
+func NewClientManager(tunnelNum int, endpoint string, cipher tunnel.Cipher) ClientManager {
+	return ClientManager{
+		tunnelNum: tunnelNum,
+		endpoint:  endpoint,
+		cipher:    cipher,
+		logger:    log.New(os.Stdout, "[ClientManager]", log.LstdFlags),
+	}
+}
+
 type ClientManager struct {
 	notifyLock sync.Mutex // Only one notify can run in the same time
 	tunnelNum  int
 	endpoint   string
 	cipher     tunnel.Cipher
-	logger     log.Logger
+	logger     *log.Logger
 }
 
 // Keep tunnelPool size above tunnelNum

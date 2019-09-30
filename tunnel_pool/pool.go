@@ -13,7 +13,7 @@ type TunnelPool struct {
 	recvQueue     chan block.Block
 }
 
-func NewTunnelPool(manager Manager) {
+func NewTunnelPool(manager Manager) TunnelPool {
 	// TODO: remember call notify at create
 }
 

@@ -58,7 +58,6 @@ func NewConnectBlock(connectID uint32, blockID uint32, address string) Block {
 	}
 }
 
-// Empty dataBlock means EOF
 func newDataBlock(connectID uint32, blockID uint32, data []byte) Block {
 	return Block{
 		Type:         BLOCK_TYPE_DATA,

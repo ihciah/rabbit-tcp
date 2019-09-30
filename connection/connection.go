@@ -17,11 +17,19 @@ type Connection interface {
 	GetRecvQueue() chan block.Block
 	GetSendQueue() chan<- block.Block
 	GetOrderedRecvQueue() chan block.Block
+
+	SendData(data []byte)
+	SendConnect(address string)
+	SendDisconnect()
+
+	Daemon(connection Connection)
+	CancelDaemon()
 }
 
 type BaseConnection struct {
 	blockProcessor
 	connectionID     uint32
+	ok               bool
 	sendQueue        chan<- block.Block // same as connectionPool
 	recvQueue        chan block.Block
 	orderedRecvQueue chan block.Block
