@@ -10,11 +10,3 @@ type Peer struct {
 	connectionPool connection_pool.ConnectionPool
 	tunnelPool     tunnel_pool.TunnelPool
 }
-
-func (p *Peer) AddConnection() {
-
-}
-
-func (p *Peer) AddTunnel(tunnel tunnel_pool.Tunnel) {
-
-}

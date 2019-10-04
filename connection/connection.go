@@ -2,6 +2,7 @@ package connection
 
 import (
 	"github.com/ihciah/rabbit-tcp/block"
+	"log"
 	"net"
 )
 
@@ -14,16 +15,18 @@ const (
 type Connection interface {
 	net.Conn
 	GetConnectionID() uint32
-	GetRecvQueue() chan block.Block
-	GetSendQueue() chan<- block.Block
 	GetOrderedRecvQueue() chan block.Block
+	GetRecvQueue() chan block.Block
+
+	RecvBlock(block.Block)
+	SendBlock(block.Block)
 
 	SendData(data []byte)
 	SendConnect(address string)
 	SendDisconnect()
 
 	Daemon(connection Connection)
-	CancelDaemon()
+	StopDaemon()
 }
 
 type BaseConnection struct {
@@ -33,18 +36,23 @@ type BaseConnection struct {
 	sendQueue        chan<- block.Block // same as connectionPool
 	recvQueue        chan block.Block
 	orderedRecvQueue chan block.Block
+	logger           *log.Logger
 }
 
 func (bc *BaseConnection) GetConnectionID() uint32 {
 	return bc.connectionID
 }
 
-func (bc *BaseConnection) GetRecvQueue() chan block.Block {
-	return bc.recvQueue
+func (bc *BaseConnection) RecvBlock(blk block.Block) {
+	bc.recvQueue <- blk
 }
 
-func (bc *BaseConnection) GetSendQueue() chan<- block.Block {
-	return bc.sendQueue
+func (bc *BaseConnection) SendBlock(blk block.Block) {
+	bc.sendQueue <- blk
+}
+
+func (bc *BaseConnection) GetRecvQueue() chan block.Block {
+	return bc.recvQueue
 }
 
 func (bc *BaseConnection) GetOrderedRecvQueue() chan block.Block {

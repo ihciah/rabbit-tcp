@@ -20,21 +20,23 @@ type Manager interface {
 	DecreaseNotify(pool *TunnelPool) // When TunnelPool size decreased, DecreaseNotify should be called
 }
 
-func NewClientManager(tunnelNum int, endpoint string, cipher tunnel.Cipher) ClientManager {
-	return ClientManager{
-		tunnelNum: tunnelNum,
-		endpoint:  endpoint,
-		cipher:    cipher,
-		logger:    log.New(os.Stdout, "[ClientManager]", log.LstdFlags),
-	}
-}
-
 type ClientManager struct {
 	notifyLock sync.Mutex // Only one notify can run in the same time
 	tunnelNum  int
 	endpoint   string
+	peerID     uint32
 	cipher     tunnel.Cipher
 	logger     *log.Logger
+}
+
+func NewClientManager(tunnelNum int, endpoint string, peerID uint32, cipher tunnel.Cipher) ClientManager {
+	return ClientManager{
+		tunnelNum: tunnelNum,
+		endpoint:  endpoint,
+		cipher:    cipher,
+		peerID:    peerID,
+		logger:    log.New(os.Stdout, "[ClientManager]", log.LstdFlags),
+	}
 }
 
 // Keep tunnelPool size above tunnelNum
@@ -44,19 +46,20 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 	tunnelCount := pool.GetTunnelCount()
 
 	for tunnelToCreate := cm.tunnelNum - tunnelCount; tunnelToCreate > 0; tunnelToCreate-- {
+		cm.logger.Printf("Need %d new tunnels now.\n", tunnelToCreate)
 		conn, err := net.Dial("tcp", cm.endpoint)
 		if err != nil {
-			cm.logger.Printf("Can not dial to %s. Cause: %s\n", cm.endpoint, err)
+			cm.logger.Printf("Can not dial to %s. Error: %v\n", cm.endpoint, err)
 			time.Sleep(ErrorWaitSec * time.Second)
 			continue
 		}
-		tun, err := NewTunnel(conn, cm.cipher)
+		tun, err := NewActiveTunnel(conn, cm.cipher, cm.peerID)
 		if err != nil {
-			cm.logger.Printf("Can not create tunnel. Cause: %s\n", err)
+			cm.logger.Printf("Can not create tunnel. Error: %v\n", err)
 			time.Sleep(ErrorWaitSec * time.Second)
 			continue
 		}
-		pool.AddTunnel(tun)
+		pool.AddTunnel(&tun)
 		cm.logger.Printf("Successfully dialed to %s. TunnelToCreate: %d\n", cm.endpoint, tunnelToCreate)
 	}
 }
@@ -68,8 +71,13 @@ type ServerManager struct {
 	destroyMeFunc       context.CancelFunc
 	cancelCountDownFunc context.CancelFunc
 	triggered           bool
-	cipher              tunnel.Cipher
-	logger              log.Logger
+	logger              *log.Logger
+}
+
+func NewServerManager() ServerManager {
+	return ServerManager{
+		logger: log.New(os.Stdout, "[ServerManager]", log.LstdFlags),
+	}
 }
 
 // If tunnelPool size is zero for more than EmptyPoolDestroySec, delete it
@@ -85,9 +93,13 @@ func (sm *ServerManager) Notify(pool *TunnelPool) {
 			select {
 			case <-destroyAfterCtx.Done():
 				sm.triggered = false
+				sm.logger.Println("ServerManager notify canceled.")
 				return
 			case <-time.After(EmptyPoolDestroySec * time.Second):
-				sm.destroyMeFunc()
+				sm.logger.Println("ServerManager will be destroyed.")
+				if sm.destroyMeFunc != nil {
+					sm.destroyMeFunc()
+				}
 				return
 			}
 		}(sm)

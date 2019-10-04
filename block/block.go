@@ -32,19 +32,26 @@ func (block *Block) Pack() []byte {
 	return packedData
 }
 
-func NewBlockFromReader(reader io.Reader) *Block {
+func NewBlockFromReader(reader io.Reader) (*Block, error) {
 	headerBuf := make([]byte, BLOCK_HEADER_SIZE)
 	block := Block{}
-	io.ReadFull(reader, headerBuf)
+	_, err := io.ReadFull(reader, headerBuf)
+	if err != nil {
+		return nil, err
+	}
 	// TODO: error handle
 	block.Type = headerBuf[0]
 	block.ConnectionID = binary.LittleEndian.Uint32(headerBuf[1:])
 	block.BlockID = binary.LittleEndian.Uint32(headerBuf[5:])
 	block.BlockLength = binary.LittleEndian.Uint32(headerBuf[9:])
 	block.BlockData = make([]byte, block.BlockLength)
-	io.ReadFull(reader, block.BlockData)
-	// TODO: error handle
-	return &block
+	if block.BlockLength > 0 {
+		_, err = io.ReadFull(reader, block.BlockData)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &block, nil
 }
 
 func NewConnectBlock(connectID uint32, blockID uint32, address string) Block {

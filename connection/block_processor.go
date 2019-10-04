@@ -2,7 +2,10 @@ package connection
 
 import (
 	"context"
+	"fmt"
 	"github.com/ihciah/rabbit-tcp/block"
+	"log"
+	"os"
 	"sync"
 )
 
@@ -16,6 +19,7 @@ type blockProcessor struct {
 	recvBlockIDLock sync.Mutex
 	sendBlockID     uint32
 	recvBlockID     uint32
+	logger          *log.Logger
 }
 
 func newBlockProcessor(conn Connection) blockProcessor {
@@ -24,46 +28,41 @@ func newBlockProcessor(conn Connection) blockProcessor {
 		cache:       make(map[uint32]block.Block),
 		sendBlockID: 1,
 		recvBlockID: 1,
+		logger:      log.New(os.Stdout, fmt.Sprintf("[BlockProcessor%d]", conn.GetConnectionID()), log.LstdFlags),
 	}
 }
 
-func (x *blockProcessor) RecvBlock(blk block.Block) {
-	x.conn.GetRecvQueue() <- blk
-}
-
-func (x *blockProcessor) SendBlock(blk block.Block) {
-	// Put block into connectionPool sendQueue
-	x.conn.GetSendQueue() <- blk
-}
-
 func (x *blockProcessor) SendData(data []byte) {
+	x.logger.Printf("Send data block.\n")
 	x.sendBlockIDLock.Lock()
 	blocks := block.NewDataBlocks(x.conn.GetConnectionID(), x.sendBlockID, data)
 	x.sendBlockID += uint32(len(blocks))
 	x.sendBlockIDLock.Unlock()
 	for _, blk := range blocks {
-		x.SendBlock(blk)
+		x.conn.SendBlock(blk)
 	}
 }
 
 func (x *blockProcessor) SendConnect(address string) {
+	x.logger.Printf("Send connect to %s block.\n", address)
 	x.sendBlockIDLock.Lock()
 	blkID := x.sendBlockID
 	x.sendBlockID += 1
 	x.sendBlockIDLock.Unlock()
 
 	blk := block.NewConnectBlock(x.conn.GetConnectionID(), blkID, address)
-	x.SendBlock(blk)
+	x.conn.SendBlock(blk)
 }
 
 func (x *blockProcessor) SendDisconnect() {
+	x.logger.Printf("Send disconnect block.\n")
 	x.sendBlockIDLock.Lock()
 	blkID := x.sendBlockID
 	x.sendBlockID += 1
 	x.sendBlockIDLock.Unlock()
 
 	blk := block.NewDisconnectBlock(x.conn.GetConnectionID(), blkID)
-	x.SendBlock(blk)
+	x.conn.SendBlock(blk)
 }
 
 // Join blocks and send buffer to connection
@@ -94,7 +93,7 @@ func (x *blockProcessor) Daemon(connection Connection) {
 	}
 }
 
-func (x *blockProcessor) CancelDaemon() {
+func (x *blockProcessor) StopDaemon() {
 	if x.cancel != nil {
 		x.cancel()
 	}

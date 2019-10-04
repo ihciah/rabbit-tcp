@@ -3,20 +3,17 @@ package main
 import (
 	"bufio"
 	"fmt"
-	rabbit_tcp "github.com/ihciah/rabbit-tcp"
-	"github.com/ihciah/rabbit-tcp/config"
-	"time"
+	"github.com/ihciah/rabbit-tcp/client"
+	"github.com/ihciah/rabbit-tcp/tunnel"
 )
 
 func startClient() {
-	conf := config.LoadConfigFromFile("config.json")
-	rabbitTCP := rabbit_tcp.NewRabbitTCPClient(conf)
-	time.Sleep(5 * time.Second)
-	conn, err := rabbitTCP.Dial("www.baidu.com:80")
-	fmt.Println("err:", err)
+	cipher, _ := tunnel.NewAEADCipher("CHACHA20-IETF-POLY1305", nil, "password")
+	cipher = nil
+	c := client.NewClient(1, "127.0.0.1:9876", cipher)
+	conn := c.Dial("www.baidu.com:80")
 	fmt.Fprintf(conn, "GET / HTTP/1.0\r\n\r\n")
-	status, err := bufio.NewReader(conn).ReadString('\n')
-	fmt.Println("err:", err)
+	status, _ := bufio.NewReader(conn).ReadString('\n')
 	fmt.Println(status)
 }
 

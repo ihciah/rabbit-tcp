@@ -1,14 +1,15 @@
 package main
 
 import (
-	rabbit_tcp "github.com/ihciah/rabbit-tcp"
-	"github.com/ihciah/rabbit-tcp/config"
+	"github.com/ihciah/rabbit-tcp/server"
+	"github.com/ihciah/rabbit-tcp/tunnel"
 )
 
 func startServer() {
-	conf := config.LoadConfigFromFile("config.json")
-	rabbitTCP := rabbit_tcp.NewRabbitTCPServer(conf)
-	rabbitTCP.Serve("127.0.0.1:12345")
+	cipher, _ := tunnel.NewAEADCipher("CHACHA20-IETF-POLY1305", nil, "password")
+	cipher = nil
+	server := server.NewServer(cipher)
+	server.Serve("127.0.0.1:9876")
 }
 
 func main() {

@@ -1,10 +1,13 @@
 package connection
 
 import (
+	"fmt"
 	"github.com/ihciah/rabbit-tcp/block"
 	"io"
+	"log"
 	"math/rand"
 	"net"
+	"os"
 	"time"
 )
 
@@ -26,6 +29,7 @@ func NewInboundConnectionWithID(connectionID uint32, sendQueue chan<- block.Bloc
 			sendQueue:        sendQueue,
 			recvQueue:        make(chan block.Block, RecvQueueSize),
 			orderedRecvQueue: make(chan block.Block, OrderedRecvQueueSize),
+			logger:           log.New(os.Stdout, fmt.Sprintf("[InboundConnection%d]", connectionID), log.LstdFlags),
 		},
 		dataBuffer: NewLoopBuffer(BlockMaxSize),
 	}
