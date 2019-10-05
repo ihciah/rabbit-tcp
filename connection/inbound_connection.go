@@ -1,6 +1,7 @@
 package connection
 
 import (
+	"context"
 	"fmt"
 	"github.com/ihciah/rabbit-tcp/block"
 	"io"
@@ -16,21 +17,18 @@ type InboundConnection struct {
 	dataBuffer LoopByteBuffer
 }
 
-func NewInboundConnection(sendQueue chan<- block.Block) Connection {
+func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, removeFromPool context.CancelFunc) Connection {
 	connectionID := rand.Uint32()
-	return NewInboundConnectionWithID(connectionID, sendQueue)
-}
-
-func NewInboundConnectionWithID(connectionID uint32, sendQueue chan<- block.Block) Connection {
 	c := InboundConnection{
 		baseConnection: baseConnection{
-			blockProcessor:   newBlockProcessor(),
+			blockProcessor:   newBlockProcessor(ctx),
 			connectionID:     connectionID,
 			ok:               true,
 			sendQueue:        sendQueue,
 			recvQueue:        make(chan block.Block, RecvQueueSize),
 			orderedRecvQueue: make(chan block.Block, OrderedRecvQueueSize),
-			logger:           log.New(os.Stdout, fmt.Sprintf("[InboundConnection%d]", connectionID), log.LstdFlags),
+			removeFromPool:   removeFromPool,
+			logger:           log.New(os.Stdout, fmt.Sprintf("[InboundConnection-%d]", connectionID), log.LstdFlags),
 		},
 		dataBuffer: NewLoopBuffer(BlockMaxSize),
 	}
@@ -104,6 +102,7 @@ func (c *InboundConnection) Write(b []byte) (n int, err error) {
 }
 
 func (c *InboundConnection) Close() error {
+
 	return nil
 }
 

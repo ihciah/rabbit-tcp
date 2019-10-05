@@ -1,6 +1,7 @@
 package tunnel_pool
 
 import (
+	"context"
 	"github.com/ihciah/rabbit-tcp/block"
 	"log"
 	"os"
@@ -19,17 +20,22 @@ type TunnelPool struct {
 	manager       Manager
 	sendQueue     chan block.Block
 	recvQueue     chan block.Block
+	ctx           context.Context
+	cancel        context.CancelFunc // currently useless
 	logger        *log.Logger
 }
 
-func NewTunnelPool(peerID uint32, manager Manager) TunnelPool {
+func NewTunnelPool(peerID uint32, manager Manager, peerContext context.Context) TunnelPool {
 	// TODO: remember call notify at create
+	ctx, cancel := context.WithCancel(peerContext)
 	tp := TunnelPool{
 		tunnelMapping: make(map[uint32]*Tunnel),
 		peerID:        peerID,
 		manager:       manager,
 		sendQueue:     make(chan block.Block, SendQueueSize),
 		recvQueue:     make(chan block.Block, RecvQueueSize),
+		ctx:           ctx,
+		cancel:        cancel,
 		logger:        log.New(os.Stdout, "[TunnelPool]", log.LstdFlags),
 	}
 	go manager.DecreaseNotify(&tp)
@@ -39,11 +45,13 @@ func NewTunnelPool(peerID uint32, manager Manager) TunnelPool {
 // Add a tunnel to tunnelPool and start bi-relay
 func (tp *TunnelPool) AddTunnel(tunnel *Tunnel) {
 	tp.logger.Println("AddTunnel called with tunnel", tunnel.tunnelID)
-
 	tp.mutex.Lock()
 	defer tp.mutex.Unlock()
+
 	tp.tunnelMapping[tunnel.tunnelID] = tunnel
-	tp.manager.Notify(tp)
+	go tp.manager.Notify(tp)
+
+	tunnel.ctx, tunnel.cancel = context.WithCancel(tp.ctx)
 	go tunnel.OutboundRelay(tp.sendQueue)
 	go tunnel.InboundRelay(tp.recvQueue)
 }

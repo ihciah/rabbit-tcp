@@ -21,10 +21,10 @@ type OutboundConnection struct {
 	cancel context.CancelFunc
 }
 
-func NewOutboundConnectionWithID(connectionID uint32, sendQueue chan<- block.Block) Connection {
+func NewOutboundConnection(connectionID uint32, sendQueue chan<- block.Block, ctx context.Context, cancel context.CancelFunc) Connection {
 	c := OutboundConnection{
 		baseConnection: baseConnection{
-			blockProcessor:   newBlockProcessor(),
+			blockProcessor:   newBlockProcessor(ctx),
 			connectionID:     connectionID,
 			ok:               false,
 			sendQueue:        sendQueue,
@@ -32,14 +32,14 @@ func NewOutboundConnectionWithID(connectionID uint32, sendQueue chan<- block.Blo
 			orderedRecvQueue: make(chan block.Block, OrderedRecvQueueSize),
 			logger:           log.New(os.Stdout, fmt.Sprintf("[OutboundConnection-%d]", connectionID), log.LstdFlags),
 		},
+		ctx:    ctx,
+		cancel: cancel,
 	}
-	// Will stop relay when Close
-	c.ctx, c.cancel = context.WithCancel(context.Background())
 	return &c
 }
 
 // real connection -> ConnectionPool's SendQueue -> TunnelPool
-func (oc *OutboundConnection) RecvRelay(ctx context.Context) {
+func (oc *OutboundConnection) RecvRelay() {
 	recvBuffer := make([]byte, OutboundRecvBuffer)
 	for {
 		n, err := oc.Conn.Read(recvBuffer)
@@ -54,11 +54,17 @@ func (oc *OutboundConnection) RecvRelay(ctx context.Context) {
 			oc.logger.Printf("Error when relay outbound connection: %v\n.", err)
 			// TODO: error handle
 		}
+		select {
+		case <-oc.ctx.Done():
+			return
+		default:
+			continue
+		}
 	}
 }
 
 // orderedRecvQueue -> real connection
-func (oc *OutboundConnection) SendRelay(ctx context.Context) {
+func (oc *OutboundConnection) SendRelay() {
 	for {
 		select {
 		case blk := <-oc.orderedRecvQueue:
@@ -87,7 +93,7 @@ func (oc *OutboundConnection) SendRelay(ctx context.Context) {
 					err = oc.Conn.Close()
 				}
 			}
-		case <-ctx.Done():
+		case <-oc.ctx.Done():
 			// TODO: thread safe
 			if oc.ok {
 				oc.ok = false
@@ -95,13 +101,6 @@ func (oc *OutboundConnection) SendRelay(ctx context.Context) {
 			}
 			return
 		}
-	}
-}
-
-func (oc *OutboundConnection) StopDaemon() {
-	oc.baseConnection.StopDaemon()
-	if oc.cancel != nil {
-		oc.cancel()
 	}
 }
 
@@ -123,7 +122,7 @@ func (oc *OutboundConnection) connect(address string) {
 	if err == nil {
 		oc.Conn = rawConn
 		oc.ok = true
-		go oc.RecvRelay(oc.ctx)
-		go oc.SendRelay(oc.ctx)
+		go oc.RecvRelay()
+		go oc.SendRelay()
 	}
 }

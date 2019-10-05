@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"context"
 	"github.com/ihciah/rabbit-tcp/connection"
 	"github.com/ihciah/rabbit-tcp/connection_pool"
 	"github.com/ihciah/rabbit-tcp/tunnel"
@@ -18,16 +19,19 @@ func NewClientPeer(tunnelNum int, endpoint string, cipher tunnel.Cipher) ClientP
 }
 
 func NewClientPeerWithID(peerID uint32, tunnelNum int, endpoint string, cipher tunnel.Cipher) ClientPeer {
-	poolManager := tunnel_pool.NewClientManager(tunnelNum, endpoint, peerID, cipher)
-	tunnelPool := tunnel_pool.NewTunnelPool(peerID, &poolManager)
+	peerCtx, removePeerFunc := context.WithCancel(context.Background())
 
-	connectionPool := connection_pool.NewConnectionPool(&tunnelPool)
+	poolManager := tunnel_pool.NewClientManager(tunnelNum, endpoint, peerID, cipher)
+	tunnelPool := tunnel_pool.NewTunnelPool(peerID, &poolManager, peerCtx)
+	connectionPool := connection_pool.NewConnectionPool(&tunnelPool, peerCtx)
 
 	return ClientPeer{
 		Peer: Peer{
 			peerID:         peerID,
 			connectionPool: connectionPool,
 			tunnelPool:     tunnelPool,
+			ctx:            peerCtx,
+			cancel:         removePeerFunc,
 		},
 	}
 }

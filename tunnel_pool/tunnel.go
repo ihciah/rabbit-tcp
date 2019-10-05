@@ -36,13 +36,10 @@ func NewPassiveTunnel(conn net.Conn, ciph tunnel.Cipher) (Tunnel, error) {
 
 // Create a new tunnel from a net.Conn and cipher with given tunnelID
 func newTunnelWithID(conn net.Conn, ciph tunnel.Cipher, peerID uint32) Tunnel {
-	ctx, cancel := context.WithCancel(context.Background())
 	tunnelID := rand.Uint32()
 	tun := Tunnel{
 		Conn:     tunnel.NewEncryptedConn(conn, ciph),
 		peerID:   peerID,
-		ctx:      ctx,
-		cancel:   cancel,
 		tunnelID: tunnelID,
 		logger:   log.New(os.Stdout, fmt.Sprintf("[Tunnel-%d]", tunnelID), log.LstdFlags),
 	}

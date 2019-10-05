@@ -68,15 +68,16 @@ func (cm *ClientManager) Notify(pool *TunnelPool) {}
 
 type ServerManager struct {
 	notifyLock          sync.Mutex // Only one notify can run in the same time
-	destroyMeFunc       context.CancelFunc
+	removePeerFunc      context.CancelFunc
 	cancelCountDownFunc context.CancelFunc
 	triggered           bool
 	logger              *log.Logger
 }
 
-func NewServerManager() ServerManager {
+func NewServerManager(removePeerFunc context.CancelFunc) ServerManager {
 	return ServerManager{
-		logger: log.New(os.Stdout, "[ServerManager]", log.LstdFlags),
+		logger:         log.New(os.Stdout, "[ServerManager]", log.LstdFlags),
+		removePeerFunc: removePeerFunc,
 	}
 }
 
@@ -97,9 +98,7 @@ func (sm *ServerManager) Notify(pool *TunnelPool) {
 				return
 			case <-time.After(EmptyPoolDestroySec * time.Second):
 				sm.logger.Println("ServerManager will be destroyed.")
-				if sm.destroyMeFunc != nil {
-					sm.destroyMeFunc()
-				}
+				sm.removePeerFunc()
 				return
 			}
 		}(sm)

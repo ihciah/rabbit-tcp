@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"context"
 	"github.com/ihciah/rabbit-tcp/tunnel"
 	"github.com/ihciah/rabbit-tcp/tunnel_pool"
 	"log"
@@ -34,9 +35,15 @@ func (pg *PeerGroup) AddTunnel(tunnel *tunnel_pool.Tunnel) error {
 
 	peerID := tunnel.GetPeerID()
 	if peer, ok = pg.peerMapping[peerID]; !ok {
-		serverPeer := NewServerPeerWithID(peerID)
+		peerContext, removePeerFunc := context.WithCancel(context.Background())
+		serverPeer := NewServerPeerWithID(peerID, peerContext, removePeerFunc)
 		peer = &serverPeer
 		pg.peerMapping[peerID] = peer
+
+		go func() {
+			<-peerContext.Done()
+			pg.RemovePeer(peerID)
+		}()
 	}
 	pg.lock.Unlock()
 	peer.tunnelPool.AddTunnel(tunnel)

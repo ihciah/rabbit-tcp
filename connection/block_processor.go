@@ -6,32 +6,29 @@ import (
 	"go.uber.org/atomic"
 	"log"
 	"os"
-	"sync"
 )
 
 // 1. Join blocks from chan to connection orderedRecvQueue
 // 2. Send bytes or control block
 type blockProcessor struct {
-	cache  map[uint32]block.Block
-	cancel context.CancelFunc
-	logger *log.Logger
+	cache    map[uint32]block.Block
+	logger   *log.Logger
+	relayCtx context.Context
 
-	sendBlockIDLock sync.Mutex
-	sendBlockID     atomic.Uint32
-	recvBlockID     uint32
+	sendBlockID atomic.Uint32
+	recvBlockID uint32
 }
 
-func newBlockProcessor() blockProcessor {
+func newBlockProcessor(ctx context.Context) blockProcessor {
 	return blockProcessor{
-		cache:  make(map[uint32]block.Block),
-		logger: log.New(os.Stdout, "[BlockProcessor]", log.LstdFlags),
+		cache:    make(map[uint32]block.Block),
+		relayCtx: ctx,
+		logger:   log.New(os.Stdout, "[BlockProcessor]", log.LstdFlags),
 	}
 }
 
 // Join blocks and send buffer to connection
-func (x *blockProcessor) Daemon(connection Connection) {
-	var ctx context.Context
-	ctx, x.cancel = context.WithCancel(context.Background())
+func (x *blockProcessor) OrderedRelay(connection Connection) {
 	for {
 		select {
 		case blk := <-connection.getRecvQueue():
@@ -53,37 +50,20 @@ func (x *blockProcessor) Daemon(connection Connection) {
 				x.logger.Printf("Put %d to cache\n", blk.BlockID)
 				x.cache[blk.BlockID] = blk
 			}
-		case <-ctx.Done():
+		case <-x.relayCtx.Done():
 			return
 		}
 	}
 }
 
-func (x *blockProcessor) StopDaemon() {
-	if x.cancel != nil {
-		x.cancel()
-	}
-}
-
 func (x *blockProcessor) packData(data []byte, connectionID uint32) []block.Block {
-	x.sendBlockIDLock.Lock()
-	blocks := block.NewDataBlocks(connectionID, &x.sendBlockID, data)
-	x.sendBlockIDLock.Unlock()
-	return blocks
+	return block.NewDataBlocks(connectionID, &x.sendBlockID, data)
 }
 
 func (x *blockProcessor) packConnect(address string, connectionID uint32) block.Block {
-	x.sendBlockIDLock.Lock()
-	blkID := x.sendBlockID.Inc()
-	x.sendBlockIDLock.Unlock()
-
-	return block.NewConnectBlock(connectionID, blkID-1, address)
+	return block.NewConnectBlock(connectionID, x.sendBlockID.Inc()-1, address)
 }
 
 func (x *blockProcessor) packDisconnect(connectionID uint32) block.Block {
-	x.sendBlockIDLock.Lock()
-	blkID := x.sendBlockID.Inc()
-	x.sendBlockIDLock.Unlock()
-
-	return block.NewDisconnectBlock(connectionID, blkID-1)
+	return block.NewDisconnectBlock(connectionID, x.sendBlockID.Inc()-1)
 }

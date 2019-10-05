@@ -23,8 +23,8 @@ type ConnectionPool struct {
 	cancel context.CancelFunc
 }
 
-func NewConnectionPool(pool *tunnel_pool.TunnelPool) ConnectionPool {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewConnectionPool(pool *tunnel_pool.TunnelPool, backgroundCtx context.Context) ConnectionPool {
+	ctx, cancel := context.WithCancel(backgroundCtx)
 	cp := ConnectionPool{
 		connectionMapping: make(map[uint32]connection.Connection),
 		tunnelPool:        pool,
@@ -41,28 +41,38 @@ func NewConnectionPool(pool *tunnel_pool.TunnelPool) ConnectionPool {
 
 // Create InboundConnection, and it to ConnectionPool and return
 func (cp *ConnectionPool) NewPooledInboundConnection() connection.Connection {
-	c := connection.NewInboundConnection(cp.sendQueue)
+	connCtx, removeConnFromPool := context.WithCancel(cp.ctx)
+	c := connection.NewInboundConnection(cp.sendQueue, connCtx, removeConnFromPool)
 	cp.addConnection(c)
+	go func() {
+		<-connCtx.Done()
+		cp.removeConnection(c)
+	}()
 	return c
 }
 
 // Create OutboundConnection, and it to ConnectionPool and return
 func (cp *ConnectionPool) NewPooledOutboundConnection(connectionID uint32) connection.Connection {
-	c := connection.NewOutboundConnectionWithID(connectionID, cp.sendQueue)
+	connCtx, removeConnFromPool := context.WithCancel(cp.ctx)
+	c := connection.NewOutboundConnection(connectionID, cp.sendQueue, connCtx, removeConnFromPool)
+	cp.addConnection(c)
+	go func() {
+		<-connCtx.Done()
+		cp.removeConnection(c)
+	}()
 	return c
 }
 
 func (cp *ConnectionPool) addConnection(conn connection.Connection) {
 	// TODO: thread safe
 	cp.connectionMapping[conn.GetConnectionID()] = conn
-	go conn.Daemon(conn)
+	go conn.OrderedRelay(conn)
 }
 
 func (cp *ConnectionPool) removeConnection(conn connection.Connection) {
 	// TODO: thread safe
 	if _, ok := cp.connectionMapping[conn.GetConnectionID()]; ok {
 		delete(cp.connectionMapping, conn.GetConnectionID())
-		conn.StopDaemon()
 	}
 }
 
@@ -77,7 +87,6 @@ func (cp *ConnectionPool) recvRelay() {
 			var ok bool
 			if conn, ok = cp.connectionMapping[connID]; !ok {
 				conn = cp.NewPooledOutboundConnection(blk.ConnectionID)
-				cp.addConnection(conn)
 				cp.logger.Println("Connection created and added to connectionPool.")
 			}
 			conn.RecvBlock(blk)

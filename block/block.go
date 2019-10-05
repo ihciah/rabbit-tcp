@@ -40,7 +40,6 @@ func NewBlockFromReader(reader io.Reader) (*Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: error handle
 	block.Type = headerBuf[0]
 	block.ConnectionID = binary.LittleEndian.Uint32(headerBuf[1:])
 	block.BlockID = binary.LittleEndian.Uint32(headerBuf[5:])
