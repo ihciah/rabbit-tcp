@@ -28,7 +28,7 @@ func newBlockProcessor(conn Connection) blockProcessor {
 		cache:       make(map[uint32]block.Block),
 		sendBlockID: 1,
 		recvBlockID: 1,
-		logger:      log.New(os.Stdout, fmt.Sprintf("[BlockProcessor%d]", conn.GetConnectionID()), log.LstdFlags),
+		logger:      log.New(os.Stdout, fmt.Sprintf("[BlockProcessor-%d]", conn.GetConnectionID()), log.LstdFlags),
 	}
 }
 
@@ -73,6 +73,7 @@ func (x *blockProcessor) Daemon(connection Connection) {
 		select {
 		case blk := <-x.conn.GetRecvQueue():
 			if x.recvBlockID == blk.BlockID {
+				x.logger.Printf("Send %d directly\n", blk.BlockID)
 				connection.GetOrderedRecvQueue() <- blk
 				x.recvBlockID++
 				for {
@@ -80,11 +81,13 @@ func (x *blockProcessor) Daemon(connection Connection) {
 					if !ok {
 						break
 					}
+					x.logger.Printf("Send %d from cache\n", blk.BlockID)
 					connection.GetOrderedRecvQueue() <- blk
 					delete(x.cache, x.recvBlockID)
 					x.recvBlockID++
 				}
 			} else {
+				x.logger.Printf("Put %d to cache\n", blk.BlockID)
 				x.cache[blk.BlockID] = blk
 			}
 		case <-ctx.Done():

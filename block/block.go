@@ -66,12 +66,14 @@ func NewConnectBlock(connectID uint32, blockID uint32, address string) Block {
 }
 
 func newDataBlock(connectID uint32, blockID uint32, data []byte) Block {
+	dataCopy := make([]byte, len(data))
+	copy(dataCopy, data)
 	return Block{
 		Type:         BLOCK_TYPE_DATA,
 		ConnectionID: connectID,
 		BlockID:      blockID,
-		BlockLength:  uint32(len(data)),
-		BlockData:    data,
+		BlockLength:  uint32(len(dataCopy)),
+		BlockData:    dataCopy,
 	}
 }
 

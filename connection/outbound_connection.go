@@ -51,6 +51,7 @@ func (oc *OutboundConnection) RecvRelay(ctx context.Context) {
 			oc.SendDisconnect()
 			return
 		} else {
+			oc.logger.Printf("Error when relay outbound connection: %v\n.", err)
 			// TODO: error handle
 		}
 	}
@@ -107,7 +108,7 @@ func (oc *OutboundConnection) CancelDaemon() {
 func (oc *OutboundConnection) RecvBlock(blk block.Block) {
 	if blk.Type == block.BLOCK_TYPE_CONNECT {
 		address := string(blk.BlockData)
-		oc.connect(address)
+		go oc.connect(address)
 	}
 	oc.recvQueue <- blk
 }

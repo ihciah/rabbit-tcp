@@ -60,14 +60,14 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 			return 0, io.EOF
 		case block.BLOCK_TYPE_DATA:
 			dst := b[readN:]
-			if len(dst) > len(blk.BlockData) {
+			if len(dst) < len(blk.BlockData) {
 				// if dst can't put a block, put part of it and return
 				c.dataBuffer.OverWrite(blk.BlockData)
 				readN += c.dataBuffer.Read(dst)
 				return readN, nil
 			}
 			// if dst can put a block, put it
-			copy(dst, blk.BlockData)
+			readN += copy(dst, blk.BlockData)
 		}
 	}
 
@@ -81,14 +81,14 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 				return readN, nil
 			case block.BLOCK_TYPE_DATA:
 				dst := b[readN:]
-				if len(dst) > len(blk.BlockData) {
+				if len(dst) < len(blk.BlockData) {
 					// if dst can't put a block, put part of it and return
 					c.dataBuffer.OverWrite(blk.BlockData)
 					readN += c.dataBuffer.Read(dst)
 					return readN, nil
 				}
 				// if dst can put a block, put it
-				copy(dst, blk.BlockData)
+				readN += copy(dst, blk.BlockData)
 			}
 		default:
 			return readN, nil
