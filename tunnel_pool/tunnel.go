@@ -25,18 +25,19 @@ type Tunnel struct {
 
 // Create a new tunnel from a net.Conn and cipher with random tunnelID
 func NewActiveTunnel(conn net.Conn, ciph tunnel.Cipher, peerID uint32) (Tunnel, error) {
-	tun := newTunnelWithID(conn, ciph, peerID, rand.Uint32())
+	tun := newTunnelWithID(conn, ciph, peerID)
 	return tun, tun.sendPeerID()
 }
 
 func NewPassiveTunnel(conn net.Conn, ciph tunnel.Cipher) (Tunnel, error) {
-	tun := newTunnelWithID(conn, ciph, 0, rand.Uint32())
+	tun := newTunnelWithID(conn, ciph, 0)
 	return tun, tun.recvPeerID()
 }
 
 // Create a new tunnel from a net.Conn and cipher with given tunnelID
-func newTunnelWithID(conn net.Conn, ciph tunnel.Cipher, peerID, tunnelID uint32) Tunnel {
+func newTunnelWithID(conn net.Conn, ciph tunnel.Cipher, peerID uint32) Tunnel {
 	ctx, cancel := context.WithCancel(context.Background())
+	tunnelID := rand.Uint32()
 	tun := Tunnel{
 		Conn:     tunnel.NewEncryptedConn(conn, ciph),
 		peerID:   peerID,

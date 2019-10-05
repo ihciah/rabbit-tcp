@@ -12,7 +12,7 @@ import (
 )
 
 type InboundConnection struct {
-	BaseConnection
+	baseConnection
 	dataBuffer LoopByteBuffer
 }
 
@@ -23,7 +23,8 @@ func NewInboundConnection(sendQueue chan<- block.Block) Connection {
 
 func NewInboundConnectionWithID(connectionID uint32, sendQueue chan<- block.Block) Connection {
 	c := InboundConnection{
-		BaseConnection: BaseConnection{
+		baseConnection: baseConnection{
+			blockProcessor:   newBlockProcessor(),
 			connectionID:     connectionID,
 			ok:               true,
 			sendQueue:        sendQueue,
@@ -33,7 +34,6 @@ func NewInboundConnectionWithID(connectionID uint32, sendQueue chan<- block.Bloc
 		},
 		dataBuffer: NewLoopBuffer(BlockMaxSize),
 	}
-	c.blockProcessor = newBlockProcessor(&c)
 	return &c
 }
 
@@ -99,7 +99,7 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 func (c *InboundConnection) Write(b []byte) (n int, err error) {
 	// TODO: tag all blocks from b using WaitGroup
 	// TODO: and wait all blocks sent
-	c.conn.SendData(b)
+	c.sendData(b)
 	return len(b), nil
 }
 

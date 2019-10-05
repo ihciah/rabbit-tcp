@@ -2,8 +2,8 @@ package connection
 
 import (
 	"context"
-	"fmt"
 	"github.com/ihciah/rabbit-tcp/block"
+	"go.uber.org/atomic"
 	"log"
 	"os"
 	"sync"
@@ -12,57 +12,20 @@ import (
 // 1. Join blocks from chan to connection orderedRecvQueue
 // 2. Send bytes or control block
 type blockProcessor struct {
-	conn            Connection
-	cache           map[uint32]block.Block
-	cancel          context.CancelFunc
+	cache  map[uint32]block.Block
+	cancel context.CancelFunc
+	logger *log.Logger
+
 	sendBlockIDLock sync.Mutex
-	recvBlockIDLock sync.Mutex
-	sendBlockID     uint32
+	sendBlockID     atomic.Uint32
 	recvBlockID     uint32
-	logger          *log.Logger
 }
 
-func newBlockProcessor(conn Connection) blockProcessor {
+func newBlockProcessor() blockProcessor {
 	return blockProcessor{
-		conn:        conn,
-		cache:       make(map[uint32]block.Block),
-		sendBlockID: 1,
-		recvBlockID: 1,
-		logger:      log.New(os.Stdout, fmt.Sprintf("[BlockProcessor-%d]", conn.GetConnectionID()), log.LstdFlags),
+		cache:  make(map[uint32]block.Block),
+		logger: log.New(os.Stdout, "[BlockProcessor]", log.LstdFlags),
 	}
-}
-
-func (x *blockProcessor) SendData(data []byte) {
-	x.logger.Printf("Send data block.\n")
-	x.sendBlockIDLock.Lock()
-	blocks := block.NewDataBlocks(x.conn.GetConnectionID(), x.sendBlockID, data)
-	x.sendBlockID += uint32(len(blocks))
-	x.sendBlockIDLock.Unlock()
-	for _, blk := range blocks {
-		x.conn.SendBlock(blk)
-	}
-}
-
-func (x *blockProcessor) SendConnect(address string) {
-	x.logger.Printf("Send connect to %s block.\n", address)
-	x.sendBlockIDLock.Lock()
-	blkID := x.sendBlockID
-	x.sendBlockID += 1
-	x.sendBlockIDLock.Unlock()
-
-	blk := block.NewConnectBlock(x.conn.GetConnectionID(), blkID, address)
-	x.conn.SendBlock(blk)
-}
-
-func (x *blockProcessor) SendDisconnect() {
-	x.logger.Printf("Send disconnect block.\n")
-	x.sendBlockIDLock.Lock()
-	blkID := x.sendBlockID
-	x.sendBlockID += 1
-	x.sendBlockIDLock.Unlock()
-
-	blk := block.NewDisconnectBlock(x.conn.GetConnectionID(), blkID)
-	x.conn.SendBlock(blk)
 }
 
 // Join blocks and send buffer to connection
@@ -71,10 +34,10 @@ func (x *blockProcessor) Daemon(connection Connection) {
 	ctx, x.cancel = context.WithCancel(context.Background())
 	for {
 		select {
-		case blk := <-x.conn.GetRecvQueue():
+		case blk := <-connection.getRecvQueue():
 			if x.recvBlockID == blk.BlockID {
 				x.logger.Printf("Send %d directly\n", blk.BlockID)
-				connection.GetOrderedRecvQueue() <- blk
+				connection.getOrderedRecvQueue() <- blk
 				x.recvBlockID++
 				for {
 					blk, ok := x.cache[x.recvBlockID]
@@ -82,7 +45,7 @@ func (x *blockProcessor) Daemon(connection Connection) {
 						break
 					}
 					x.logger.Printf("Send %d from cache\n", blk.BlockID)
-					connection.GetOrderedRecvQueue() <- blk
+					connection.getOrderedRecvQueue() <- blk
 					delete(x.cache, x.recvBlockID)
 					x.recvBlockID++
 				}
@@ -100,4 +63,27 @@ func (x *blockProcessor) StopDaemon() {
 	if x.cancel != nil {
 		x.cancel()
 	}
+}
+
+func (x *blockProcessor) packData(data []byte, connectionID uint32) []block.Block {
+	x.sendBlockIDLock.Lock()
+	blocks := block.NewDataBlocks(connectionID, &x.sendBlockID, data)
+	x.sendBlockIDLock.Unlock()
+	return blocks
+}
+
+func (x *blockProcessor) packConnect(address string, connectionID uint32) block.Block {
+	x.sendBlockIDLock.Lock()
+	blkID := x.sendBlockID.Inc()
+	x.sendBlockIDLock.Unlock()
+
+	return block.NewConnectBlock(connectionID, blkID-1, address)
+}
+
+func (x *blockProcessor) packDisconnect(connectionID uint32) block.Block {
+	x.sendBlockIDLock.Lock()
+	blkID := x.sendBlockID.Inc()
+	x.sendBlockIDLock.Unlock()
+
+	return block.NewDisconnectBlock(connectionID, blkID-1)
 }

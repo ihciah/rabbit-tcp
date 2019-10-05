@@ -11,7 +11,7 @@ import (
 func startClient() {
 	cipher, _ := tunnel.NewAEADCipher("CHACHA20-IETF-POLY1305", nil, "password")
 	cipher = nil
-	c := client.NewClient(1, "127.0.0.1:9876", cipher)
+	c := client.NewClient(6, "127.0.0.1:9876", cipher)
 	time.Sleep(3 * time.Second)
 	conn := c.Dial("www.baidu.com:80")
 	fmt.Fprintf(conn, "GET / HTTP/1.0\r\n\r\n")

@@ -15,7 +15,7 @@ const (
 )
 
 type OutboundConnection struct {
-	BaseConnection
+	baseConnection
 	net.Conn
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -23,7 +23,8 @@ type OutboundConnection struct {
 
 func NewOutboundConnectionWithID(connectionID uint32, sendQueue chan<- block.Block) Connection {
 	c := OutboundConnection{
-		BaseConnection: BaseConnection{
+		baseConnection: baseConnection{
+			blockProcessor:   newBlockProcessor(),
 			connectionID:     connectionID,
 			ok:               false,
 			sendQueue:        sendQueue,
@@ -32,7 +33,6 @@ func NewOutboundConnectionWithID(connectionID uint32, sendQueue chan<- block.Blo
 			logger:           log.New(os.Stdout, fmt.Sprintf("[OutboundConnection-%d]", connectionID), log.LstdFlags),
 		},
 	}
-	c.blockProcessor = newBlockProcessor(&c)
 	// Will stop relay when Close
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	return &c
@@ -44,7 +44,7 @@ func (oc *OutboundConnection) RecvRelay(ctx context.Context) {
 	for {
 		n, err := oc.Conn.Read(recvBuffer)
 		if err == nil {
-			oc.SendData(recvBuffer[:n])
+			oc.sendData(recvBuffer[:n])
 		} else if err == io.EOF {
 			oc.ok = false
 			oc.Conn.Close()
@@ -98,8 +98,8 @@ func (oc *OutboundConnection) SendRelay(ctx context.Context) {
 	}
 }
 
-func (oc *OutboundConnection) CancelDaemon() {
-	oc.BaseConnection.StopDaemon()
+func (oc *OutboundConnection) StopDaemon() {
+	oc.baseConnection.StopDaemon()
 	if oc.cancel != nil {
 		oc.cancel()
 	}

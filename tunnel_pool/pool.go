@@ -62,10 +62,6 @@ func (tp *TunnelPool) RemoveTunnel(tunnel *Tunnel) {
 	}
 }
 
-func (tp *TunnelPool) GetTunnelCount() int {
-	return len(tp.tunnelMapping)
-}
-
 func (tp *TunnelPool) GetSendQueue() chan block.Block {
 	return tp.sendQueue
 }

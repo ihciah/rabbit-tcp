@@ -33,7 +33,7 @@ func NewClientPeerWithID(peerID uint32, tunnelNum int, endpoint string, cipher t
 }
 
 func (cp *ClientPeer) Dial(address string) connection.Connection {
-	conn := cp.connectionPool.NewInboundConnection()
+	conn := cp.connectionPool.NewPooledInboundConnection()
 	conn.SendConnect(address)
 	return conn
 }

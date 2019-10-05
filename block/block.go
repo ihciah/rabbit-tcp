@@ -2,6 +2,7 @@ package block
 
 import (
 	"encoding/binary"
+	"go.uber.org/atomic"
 	"io"
 )
 
@@ -77,15 +78,14 @@ func newDataBlock(connectID uint32, blockID uint32, data []byte) Block {
 	}
 }
 
-func NewDataBlocks(connectID uint32, blockID uint32, data []byte) []Block {
+func NewDataBlocks(connectID uint32, blockID *atomic.Uint32, data []byte) []Block {
 	blocks := make([]Block, 0)
 	for cursor := 0; cursor < len(data); {
 		end := cursor + BLOCK_DATA_SIZE
 		if len(data) < end {
 			end = len(data)
 		}
-		blocks = append(blocks, newDataBlock(connectID, blockID, data[cursor:end]))
-		blockID += 1
+		blocks = append(blocks, newDataBlock(connectID, blockID.Inc()-1, data[cursor:end]))
 		cursor = end
 	}
 	return blocks

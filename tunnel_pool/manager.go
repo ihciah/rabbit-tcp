@@ -43,7 +43,7 @@ func NewClientManager(tunnelNum int, endpoint string, peerID uint32, cipher tunn
 func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 	cm.notifyLock.Lock()
 	defer cm.notifyLock.Unlock()
-	tunnelCount := pool.GetTunnelCount()
+	tunnelCount := len(pool.tunnelMapping)
 
 	for tunnelToCreate := cm.tunnelNum - tunnelCount; tunnelToCreate > 0; tunnelToCreate-- {
 		cm.logger.Printf("Need %d new tunnels now.\n", tunnelToCreate)
@@ -84,7 +84,7 @@ func NewServerManager() ServerManager {
 func (sm *ServerManager) Notify(pool *TunnelPool) {
 	sm.notifyLock.Lock()
 	defer sm.notifyLock.Unlock()
-	tunnelCount := pool.GetTunnelCount()
+	tunnelCount := len(pool.tunnelMapping)
 
 	if tunnelCount == 0 && !sm.triggered {
 		var destroyAfterCtx context.Context

@@ -15,13 +15,13 @@ const (
 type Connection interface {
 	net.Conn
 	GetConnectionID() uint32
-	GetOrderedRecvQueue() chan block.Block
-	GetRecvQueue() chan block.Block
+	getOrderedRecvQueue() chan block.Block
+	getRecvQueue() chan block.Block
 
 	RecvBlock(block.Block)
-	SendBlock(block.Block)
+	sendBlock(block.Block)
 
-	SendData(data []byte)
+	sendData(data []byte)
 	SendConnect(address string)
 	SendDisconnect()
 
@@ -29,7 +29,7 @@ type Connection interface {
 	StopDaemon()
 }
 
-type BaseConnection struct {
+type baseConnection struct {
 	blockProcessor
 	connectionID     uint32
 	ok               bool
@@ -39,22 +39,42 @@ type BaseConnection struct {
 	logger           *log.Logger
 }
 
-func (bc *BaseConnection) GetConnectionID() uint32 {
+func (bc *baseConnection) GetConnectionID() uint32 {
 	return bc.connectionID
 }
 
-func (bc *BaseConnection) RecvBlock(blk block.Block) {
+func (bc *baseConnection) RecvBlock(blk block.Block) {
 	bc.recvQueue <- blk
 }
 
-func (bc *BaseConnection) SendBlock(blk block.Block) {
+func (bc *baseConnection) sendBlock(blk block.Block) {
 	bc.sendQueue <- blk
 }
 
-func (bc *BaseConnection) GetRecvQueue() chan block.Block {
+func (bc *baseConnection) getRecvQueue() chan block.Block {
 	return bc.recvQueue
 }
 
-func (bc *BaseConnection) GetOrderedRecvQueue() chan block.Block {
+func (bc *baseConnection) getOrderedRecvQueue() chan block.Block {
 	return bc.orderedRecvQueue
+}
+
+func (bc *baseConnection) sendData(data []byte) {
+	bc.logger.Printf("Send data block.\n")
+	blocks := bc.packData(data, bc.connectionID)
+	for _, blk := range blocks {
+		bc.sendBlock(blk)
+	}
+}
+
+func (bc *baseConnection) SendConnect(address string) {
+	bc.logger.Printf("Send connect to %s block.\n", address)
+	blk := bc.packConnect(address, bc.connectionID)
+	bc.sendBlock(blk)
+}
+
+func (bc *baseConnection) SendDisconnect() {
+	bc.logger.Printf("Send disconnect block.\n")
+	blk := bc.packDisconnect(bc.connectionID)
+	bc.sendBlock(blk)
 }
