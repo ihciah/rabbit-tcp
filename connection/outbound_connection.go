@@ -46,6 +46,7 @@ func (oc *OutboundConnection) RecvRelay() {
 		if err == nil {
 			oc.sendData(recvBuffer[:n])
 		} else if err == io.EOF {
+			oc.logger.Println("EOF received from outbound connection.")
 			oc.ok = false
 			oc.Conn.Close()
 			oc.SendDisconnect()

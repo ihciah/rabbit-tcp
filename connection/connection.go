@@ -72,13 +72,13 @@ func (bc *baseConnection) SendConnect(address string) {
 }
 
 func (bc *baseConnection) SendDisconnect() {
-	bc.logger.Printf("Send disconnect block.\n")
+	bc.logger.Println("Send disconnect block.")
 	blk := bc.blockProcessor.packDisconnect(bc.connectionID)
 	bc.sendQueue <- blk
 }
 
 func (bc *baseConnection) sendData(data []byte) {
-	bc.logger.Printf("Send data block.\n")
+	bc.logger.Println("Send data block.")
 	blocks := bc.blockProcessor.packData(data, bc.connectionID)
 	for _, blk := range blocks {
 		bc.sendQueue <- blk

@@ -78,7 +78,7 @@ func (tunnel *Tunnel) OutboundRelay(input <-chan block.Block) {
 			reader := bytes.NewReader(dataToSend)
 			n, err := io.Copy(tunnel.Conn, reader)
 			if err != nil || n != int64(len(dataToSend)) {
-				tunnel.logger.Printf("Unable to send data to tunnel(n: %d, error: %v).\n", n, err)
+				tunnel.logger.Printf("Error when send bytes to tunnel: (n: %d, error: %v).\n", n, err)
 				// TODO: error handle
 			} else {
 				tunnel.logger.Printf("Copied data to tunnel successfully(n: %d).\n", n)
@@ -96,9 +96,14 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 			return
 		default:
 			blk, err := block.NewBlockFromReader(tunnel.Conn)
-			tunnel.logger.Printf("Block received from tunnel(type: %d) with error: %v.\n", blk.Type, err)
-			// TODO: will panic when err != nil
-			output <- *blk
+			if err != nil {
+				tunnel.logger.Printf("Error when receiving block from tunnel: %v.\n", err)
+				tunnel.StopRelay()
+				// TODO: remove tunnel from pool
+			} else {
+				tunnel.logger.Printf("Block received from tunnel(type: %d)successfully.\n", blk.Type)
+				output <- *blk
+			}
 		}
 	}
 }

@@ -26,7 +26,6 @@ type TunnelPool struct {
 }
 
 func NewTunnelPool(peerID uint32, manager Manager, peerContext context.Context) TunnelPool {
-	// TODO: remember call notify at create
 	ctx, cancel := context.WithCancel(peerContext)
 	tp := TunnelPool{
 		tunnelMapping: make(map[uint32]*Tunnel),

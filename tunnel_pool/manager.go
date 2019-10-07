@@ -49,13 +49,13 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 		cm.logger.Printf("Need %d new tunnels now.\n", tunnelToCreate)
 		conn, err := net.Dial("tcp", cm.endpoint)
 		if err != nil {
-			cm.logger.Printf("Can not dial to %s. Error: %v\n", cm.endpoint, err)
+			cm.logger.Printf("Error when dial to %s: %v.\n", cm.endpoint, err)
 			time.Sleep(ErrorWaitSec * time.Second)
 			continue
 		}
 		tun, err := NewActiveTunnel(conn, cm.cipher, cm.peerID)
 		if err != nil {
-			cm.logger.Printf("Can not create tunnel. Error: %v\n", err)
+			cm.logger.Printf("Error when create active tunnel: %v\n", err)
 			time.Sleep(ErrorWaitSec * time.Second)
 			continue
 		}

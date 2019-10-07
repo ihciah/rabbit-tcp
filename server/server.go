@@ -29,11 +29,11 @@ func (s *Server) Serve(address string) error {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			s.logger.Println("Cannot accept connection", err)
+			s.logger.Printf("Error when accept connection: %v.\n", err)
 		}
 		err = s.peerGroup.AddTunnelFromConn(conn)
 		if err != nil {
-			s.logger.Println("Cannot add tunnel", err)
+			s.logger.Printf("Error when add tunnel to tunnel pool: %v.\n", err)
 		}
 	}
 }

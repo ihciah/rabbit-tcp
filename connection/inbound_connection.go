@@ -102,26 +102,31 @@ func (c *InboundConnection) Write(b []byte) (n int, err error) {
 }
 
 func (c *InboundConnection) Close() error {
-
+	// TODO
 	return nil
 }
 
 func (c *InboundConnection) LocalAddr() net.Addr {
+	// TODO
 	return nil
 }
 
 func (c *InboundConnection) RemoteAddr() net.Addr {
+	// TODO
 	return nil
 }
 
 func (c *InboundConnection) SetDeadline(t time.Time) error {
+	// TODO
 	return nil
 }
 
 func (c *InboundConnection) SetReadDeadline(t time.Time) error {
+	// TODO
 	return nil
 }
 
 func (c *InboundConnection) SetWriteDeadline(t time.Time) error {
+	// TODO
 	return nil
 }
