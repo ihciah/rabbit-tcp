@@ -40,9 +40,7 @@ type baseConnection struct {
 }
 
 func (bc *baseConnection) Stop() {
-	if bc.removeFromPool != nil {
-		bc.removeFromPool()
-	}
+	bc.removeFromPool()
 }
 
 func (bc *baseConnection) OrderedRelay(connection Connection) {
@@ -75,6 +73,7 @@ func (bc *baseConnection) SendDisconnect() {
 	bc.logger.Println("Send disconnect block.")
 	blk := bc.blockProcessor.packDisconnect(bc.connectionID)
 	bc.sendQueue <- blk
+	bc.Stop()
 }
 
 func (bc *baseConnection) sendData(data []byte) {

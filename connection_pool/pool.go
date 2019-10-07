@@ -55,6 +55,7 @@ func (cp *ConnectionPool) NewPooledInboundConnection() connection.Connection {
 
 // Create OutboundConnection, and it to ConnectionPool and return
 func (cp *ConnectionPool) NewPooledOutboundConnection(connectionID uint32) connection.Connection {
+	cp.logger.Printf("Connection %d created.\n", connectionID)
 	connCtx, removeConnFromPool := context.WithCancel(cp.ctx)
 	c := connection.NewOutboundConnection(connectionID, cp.sendQueue, connCtx, removeConnFromPool)
 	cp.addConnection(c)
@@ -66,6 +67,7 @@ func (cp *ConnectionPool) NewPooledOutboundConnection(connectionID uint32) conne
 }
 
 func (cp *ConnectionPool) addConnection(conn connection.Connection) {
+	cp.logger.Printf("Connection %d added to connection pool.\n", conn.GetConnectionID())
 	cp.mappingLock.Lock()
 	defer cp.mappingLock.Unlock()
 	cp.connectionMapping[conn.GetConnectionID()] = conn
@@ -83,7 +85,7 @@ func (cp *ConnectionPool) removeConnection(conn connection.Connection) {
 
 // Deliver blocks from tunnelPool channel to specified connections
 func (cp *ConnectionPool) recvRelay() {
-	cp.logger.Println("recvRelay started.")
+	cp.logger.Println("Recv Relay started.")
 	for {
 		select {
 		case blk := <-cp.tunnelPool.GetRecvQueue():
@@ -97,6 +99,7 @@ func (cp *ConnectionPool) recvRelay() {
 			conn.RecvBlock(blk)
 			cp.logger.Printf("Block %d(type: %d) put to connRecvQueue.\n", blk.BlockID, blk.Type)
 		case <-cp.ctx.Done():
+			cp.logger.Println("Recv Relay stoped.")
 			return
 		}
 	}
@@ -105,19 +108,20 @@ func (cp *ConnectionPool) recvRelay() {
 // Deliver blocks from connPool's sendQueue to tunnelPool
 // TODO: Maybe QOS can be implemented here
 func (cp *ConnectionPool) sendRelay() {
-	cp.logger.Println("sendRelay started.")
+	cp.logger.Println("Send Relay started.")
 	for {
 		select {
 		case blk := <-cp.sendQueue:
 			cp.tunnelPool.GetSendQueue() <- blk
 			cp.logger.Printf("Block %d(type: %d) put to connSendQueue.\n", blk.BlockID, blk.Type)
 		case <-cp.ctx.Done():
+			cp.logger.Printf("Send Relay stoped.\n")
 			return
 		}
 	}
 }
 
 func (cp *ConnectionPool) stopRelay() {
-	cp.logger.Println("Relay stopped.")
+	cp.logger.Println("Stop all ConnectionPool Relay.")
 	cp.cancel()
 }

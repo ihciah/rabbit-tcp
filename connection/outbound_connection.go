@@ -21,19 +21,19 @@ type OutboundConnection struct {
 	cancel context.CancelFunc
 }
 
-func NewOutboundConnection(connectionID uint32, sendQueue chan<- block.Block, ctx context.Context, cancel context.CancelFunc) Connection {
+func NewOutboundConnection(connectionID uint32, sendQueue chan<- block.Block, ctx context.Context, removeFromPool context.CancelFunc) Connection {
 	c := OutboundConnection{
 		baseConnection: baseConnection{
 			blockProcessor:   newBlockProcessor(ctx),
 			connectionID:     connectionID,
 			ok:               false,
+			removeFromPool:   removeFromPool,
 			sendQueue:        sendQueue,
 			recvQueue:        make(chan block.Block, RecvQueueSize),
 			orderedRecvQueue: make(chan block.Block, OrderedRecvQueueSize),
 			logger:           log.New(os.Stdout, fmt.Sprintf("[OutboundConnection-%d]", connectionID), log.LstdFlags),
 		},
-		ctx:    ctx,
-		cancel: cancel,
+		ctx: ctx,
 	}
 	return &c
 }
@@ -47,17 +47,18 @@ func (oc *OutboundConnection) RecvRelay() {
 			oc.sendData(recvBuffer[:n])
 		} else if err == io.EOF {
 			oc.logger.Println("EOF received from outbound connection.")
-			oc.SendDisconnect()
 			oc.ok = false
+			oc.SendDisconnect()
 			oc.Conn.Close()
 			// TODO: error handle
 			return
 		} else {
 			oc.logger.Printf("Error when relay outbound connection: %v\n.", err)
-			oc.SendDisconnect()
 			oc.ok = false
+			oc.SendDisconnect()
 			oc.Conn.Close()
 			// TODO: error handle
+			return
 		}
 		select {
 		case <-oc.ctx.Done():
@@ -118,11 +119,14 @@ func (oc *OutboundConnection) connect(address string) {
 		return
 	}
 	rawConn, err := net.Dial("tcp", address)
-	oc.logger.Printf("Dail to %s in error: %v.\n", address, err)
 	if err == nil {
+		oc.logger.Printf("Dail to %s successfully.\n", address)
 		oc.Conn = rawConn
 		oc.ok = true
 		go oc.RecvRelay()
 		go oc.SendRelay()
+	} else {
+		oc.logger.Printf("Error when dail to %s: %v.\n", address, err)
+		oc.SendDisconnect()
 	}
 }

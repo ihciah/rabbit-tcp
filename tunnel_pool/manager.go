@@ -45,7 +45,7 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 	defer cm.notifyLock.Unlock()
 	tunnelCount := len(pool.tunnelMapping)
 
-	for tunnelToCreate := cm.tunnelNum - tunnelCount; tunnelToCreate > 0; tunnelToCreate-- {
+	for tunnelToCreate := cm.tunnelNum - tunnelCount; tunnelToCreate > 0; {
 		cm.logger.Printf("Need %d new tunnels now.\n", tunnelToCreate)
 		conn, err := net.Dial("tcp", cm.endpoint)
 		if err != nil {
@@ -60,6 +60,7 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 			continue
 		}
 		pool.AddTunnel(&tun)
+		tunnelToCreate--
 		cm.logger.Printf("Successfully dialed to %s. TunnelToCreate: %d\n", cm.endpoint, tunnelToCreate)
 	}
 }

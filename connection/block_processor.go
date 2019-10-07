@@ -29,6 +29,7 @@ func newBlockProcessor(ctx context.Context) blockProcessor {
 
 // Join blocks and send buffer to connection
 func (x *blockProcessor) OrderedRelay(connection Connection) {
+	x.logger.Printf("Connection %d ordered relay started.\n", connection.GetConnectionID())
 	for {
 		select {
 		case blk := <-connection.getRecvQueue():
@@ -51,6 +52,7 @@ func (x *blockProcessor) OrderedRelay(connection Connection) {
 				x.cache[blk.BlockID] = blk
 			}
 		case <-x.relayCtx.Done():
+			x.logger.Printf("Connection %d ordered relay stoped.\n", connection.GetConnectionID())
 			return
 		}
 	}
