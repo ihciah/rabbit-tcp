@@ -67,7 +67,7 @@ func (tunnel *Tunnel) recvPeerID() error {
 }
 
 // Read block from send channel, pack it and send
-func (tunnel *Tunnel) OutboundRelay(input <-chan block.Block) {
+func (tunnel *Tunnel) OutboundRelay(input chan block.Block) {
 	tunnel.logger.Println("Outbound relay started.")
 	for {
 		select {
@@ -79,7 +79,8 @@ func (tunnel *Tunnel) OutboundRelay(input <-chan block.Block) {
 			n, err := io.Copy(tunnel.Conn, reader)
 			if err != nil || n != int64(len(dataToSend)) {
 				tunnel.logger.Printf("Error when send bytes to tunnel: (n: %d, error: %v).\n", n, err)
-				// TODO: error handle
+				// Tunnel down and message has not been fully sent.
+				tunnel.cancel()
 			} else {
 				tunnel.logger.Printf("Copied data to tunnel successfully(n: %d).\n", n)
 			}
@@ -98,19 +99,14 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 			blk, err := block.NewBlockFromReader(tunnel.Conn)
 			if err != nil {
 				tunnel.logger.Printf("Error when receiving block from tunnel: %v.\n", err)
-				tunnel.StopRelay()
-				// TODO: remove tunnel from pool
+				// Tunnel down and message has not been fully read.
+				tunnel.cancel()
 			} else {
 				tunnel.logger.Printf("Block received from tunnel(type: %d)successfully.\n", blk.Type)
 				output <- *blk
 			}
 		}
 	}
-}
-
-func (tunnel *Tunnel) StopRelay() {
-	tunnel.logger.Println("Relays started.")
-	tunnel.cancel()
 }
 
 func (tunnel *Tunnel) GetPeerID() uint32 {

@@ -7,6 +7,7 @@ import (
 	"github.com/ihciah/rabbit-tcp/tunnel_pool"
 	"log"
 	"os"
+	"sync"
 )
 
 const (
@@ -15,6 +16,7 @@ const (
 
 type ConnectionPool struct {
 	connectionMapping map[uint32]connection.Connection
+	mappingLock       sync.Mutex
 	tunnelPool        *tunnel_pool.TunnelPool
 	sendQueue         chan block.Block
 	logger            *log.Logger
@@ -64,13 +66,16 @@ func (cp *ConnectionPool) NewPooledOutboundConnection(connectionID uint32) conne
 }
 
 func (cp *ConnectionPool) addConnection(conn connection.Connection) {
-	// TODO: thread safe
+	cp.mappingLock.Lock()
+	defer cp.mappingLock.Unlock()
 	cp.connectionMapping[conn.GetConnectionID()] = conn
 	go conn.OrderedRelay(conn)
 }
 
 func (cp *ConnectionPool) removeConnection(conn connection.Connection) {
-	// TODO: thread safe
+	cp.logger.Printf("Connection %d removed from connection pool.\n", conn.GetConnectionID())
+	cp.mappingLock.Lock()
+	defer cp.mappingLock.Unlock()
 	if _, ok := cp.connectionMapping[conn.GetConnectionID()]; ok {
 		delete(cp.connectionMapping, conn.GetConnectionID())
 	}

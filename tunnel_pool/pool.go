@@ -51,18 +51,21 @@ func (tp *TunnelPool) AddTunnel(tunnel *Tunnel) {
 	go tp.manager.Notify(tp)
 
 	tunnel.ctx, tunnel.cancel = context.WithCancel(tp.ctx)
+	go func() {
+		<-tunnel.ctx.Done()
+		tp.RemoveTunnel(tunnel)
+	}()
+
 	go tunnel.OutboundRelay(tp.sendQueue)
 	go tunnel.InboundRelay(tp.recvQueue)
 }
 
 // Remove a tunnel from tunnelPool and stop bi-relay
 func (tp *TunnelPool) RemoveTunnel(tunnel *Tunnel) {
-	tp.logger.Println("RemoveTunnel called with tunnel", tunnel.tunnelID)
-
+	tp.logger.Printf("Tunnel %d to peer %d removed from pool.\n", tunnel.tunnelID, tunnel.peerID)
 	tp.mutex.Lock()
 	defer tp.mutex.Unlock()
 	if tunnel, ok := tp.tunnelMapping[tunnel.tunnelID]; ok {
-		tunnel.StopRelay()
 		delete(tp.tunnelMapping, tunnel.tunnelID)
 		tp.manager.Notify(tp)
 		tp.manager.DecreaseNotify(tp)

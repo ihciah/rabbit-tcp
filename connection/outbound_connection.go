@@ -47,12 +47,16 @@ func (oc *OutboundConnection) RecvRelay() {
 			oc.sendData(recvBuffer[:n])
 		} else if err == io.EOF {
 			oc.logger.Println("EOF received from outbound connection.")
+			oc.SendDisconnect()
 			oc.ok = false
 			oc.Conn.Close()
-			oc.SendDisconnect()
+			// TODO: error handle
 			return
 		} else {
 			oc.logger.Printf("Error when relay outbound connection: %v\n.", err)
+			oc.SendDisconnect()
+			oc.ok = false
+			oc.Conn.Close()
 			// TODO: error handle
 		}
 		select {
@@ -88,18 +92,13 @@ func (oc *OutboundConnection) SendRelay() {
 			}
 			if err != nil {
 				// TODO: error handle
-				// TODO: thread safe
-				if oc.ok {
-					oc.ok = false
-					err = oc.Conn.Close()
-				}
+				oc.ok = false
+				err = oc.Conn.Close()
 			}
 		case <-oc.ctx.Done():
-			// TODO: thread safe
-			if oc.ok {
-				oc.ok = false
-				oc.Conn.Close()
-			}
+			// TODO: error handle
+			oc.ok = false
+			oc.Conn.Close()
 			return
 		}
 	}

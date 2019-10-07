@@ -103,6 +103,7 @@ func (c *InboundConnection) Write(b []byte) (n int, err error) {
 
 func (c *InboundConnection) Close() error {
 	// TODO
+	c.SendDisconnect()
 	return nil
 }
 

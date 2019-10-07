@@ -18,6 +18,9 @@ type PeerGroup struct {
 }
 
 func NewPeerGroup(cipher tunnel.Cipher) PeerGroup {
+	if initRand() != nil {
+		panic("Error when initialize random seed.")
+	}
 	return PeerGroup{
 		cipher:      cipher,
 		peerMapping: make(map[uint32]*ServerPeer),
@@ -60,7 +63,9 @@ func (pg *PeerGroup) AddTunnelFromConn(conn net.Conn) error {
 	return pg.AddTunnel(&tun)
 }
 
-// TODO: if all tunnels down, after WAIT time, remove peer
 func (pg *PeerGroup) RemovePeer(peerID uint32) {
-
+	pg.logger.Printf("Peer %d removed from peer group.\n", peerID)
+	pg.lock.Lock()
+	defer pg.lock.Unlock()
+	delete(pg.peerMapping, peerID)
 }
