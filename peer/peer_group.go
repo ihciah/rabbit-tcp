@@ -30,7 +30,6 @@ func NewPeerGroup(cipher tunnel.Cipher) PeerGroup {
 
 // Add a tunnel to it's peer; will create peer if not exists
 func (pg *PeerGroup) AddTunnel(tunnel *tunnel_pool.Tunnel) error {
-	pg.logger.Println("AddTunnel called.")
 	// add tunnel to peer(if absent, create peer to peer_group)
 	pg.lock.Lock()
 	var peer *ServerPeer
@@ -42,6 +41,7 @@ func (pg *PeerGroup) AddTunnel(tunnel *tunnel_pool.Tunnel) error {
 		serverPeer := NewServerPeerWithID(peerID, peerContext, removePeerFunc)
 		peer = &serverPeer
 		pg.peerMapping[peerID] = peer
+		pg.logger.Printf("Server Peer %d added to PeerGroup.\n", peerID)
 
 		go func() {
 			<-peerContext.Done()
@@ -55,7 +55,6 @@ func (pg *PeerGroup) AddTunnel(tunnel *tunnel_pool.Tunnel) error {
 
 // Like AddTunnel, add a raw connection
 func (pg *PeerGroup) AddTunnelFromConn(conn net.Conn) error {
-	pg.logger.Println("AddTunnelFromConn called.")
 	tun, err := tunnel_pool.NewPassiveTunnel(conn, pg.cipher)
 	if err != nil {
 		return err
@@ -64,7 +63,7 @@ func (pg *PeerGroup) AddTunnelFromConn(conn net.Conn) error {
 }
 
 func (pg *PeerGroup) RemovePeer(peerID uint32) {
-	pg.logger.Printf("Peer %d removed from peer group.\n", peerID)
+	pg.logger.Printf("Server Peer %d removed from peer group.\n", peerID)
 	pg.lock.Lock()
 	defer pg.lock.Unlock()
 	delete(pg.peerMapping, peerID)

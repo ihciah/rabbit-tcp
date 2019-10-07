@@ -35,7 +35,7 @@ func NewConnectionPool(pool *tunnel_pool.TunnelPool, backgroundCtx context.Conte
 		ctx:               ctx,
 		cancel:            cancel,
 	}
-	cp.logger.Println("ConnectionPool created.")
+	cp.logger.Println("Connection Pool created.")
 	go cp.sendRelay()
 	go cp.recvRelay()
 	return cp
@@ -55,7 +55,6 @@ func (cp *ConnectionPool) NewPooledInboundConnection() connection.Connection {
 
 // Create OutboundConnection, and it to ConnectionPool and return
 func (cp *ConnectionPool) NewPooledOutboundConnection(connectionID uint32) connection.Connection {
-	cp.logger.Printf("Connection %d created.\n", connectionID)
 	connCtx, removeConnFromPool := context.WithCancel(cp.ctx)
 	c := connection.NewOutboundConnection(connectionID, cp.sendQueue, connCtx, removeConnFromPool)
 	cp.addConnection(c)

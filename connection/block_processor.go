@@ -29,12 +29,12 @@ func newBlockProcessor(ctx context.Context) blockProcessor {
 
 // Join blocks and send buffer to connection
 func (x *blockProcessor) OrderedRelay(connection Connection) {
-	x.logger.Printf("Connection %d ordered relay started.\n", connection.GetConnectionID())
+	x.logger.Printf("Ordered Relay of Connection %d started.\n", connection.GetConnectionID())
 	for {
 		select {
 		case blk := <-connection.getRecvQueue():
 			if x.recvBlockID == blk.BlockID {
-				x.logger.Printf("Send %d directly\n", blk.BlockID)
+				x.logger.Printf("Send Block %d directly\n", blk.BlockID)
 				connection.getOrderedRecvQueue() <- blk
 				x.recvBlockID++
 				for {
@@ -42,17 +42,17 @@ func (x *blockProcessor) OrderedRelay(connection Connection) {
 					if !ok {
 						break
 					}
-					x.logger.Printf("Send %d from cache\n", blk.BlockID)
+					x.logger.Printf("Send Block %d from cache\n", blk.BlockID)
 					connection.getOrderedRecvQueue() <- blk
 					delete(x.cache, x.recvBlockID)
 					x.recvBlockID++
 				}
 			} else {
-				x.logger.Printf("Put %d to cache\n", blk.BlockID)
+				x.logger.Printf("Put Block %d to cache\n", blk.BlockID)
 				x.cache[blk.BlockID] = blk
 			}
 		case <-x.relayCtx.Done():
-			x.logger.Printf("Connection %d ordered relay stoped.\n", connection.GetConnectionID())
+			x.logger.Printf("Ordered Relay of Connection %d stoped.\n", connection.GetConnectionID())
 			return
 		}
 	}

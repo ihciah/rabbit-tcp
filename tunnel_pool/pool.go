@@ -37,13 +37,14 @@ func NewTunnelPool(peerID uint32, manager Manager, peerContext context.Context) 
 		cancel:        cancel,
 		logger:        log.New(os.Stdout, "[TunnelPool]", log.LstdFlags),
 	}
+	tp.logger.Printf("Tunnel Pool of peer %d created.\n", peerID)
 	go manager.DecreaseNotify(&tp)
 	return tp
 }
 
 // Add a tunnel to tunnelPool and start bi-relay
 func (tp *TunnelPool) AddTunnel(tunnel *Tunnel) {
-	tp.logger.Println("AddTunnel called with tunnel", tunnel.tunnelID)
+	tp.logger.Printf("Tunnel %d added to Peer %d.\n", tunnel.tunnelID, tp.peerID)
 	tp.mutex.Lock()
 	defer tp.mutex.Unlock()
 

@@ -32,6 +32,7 @@ func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, rem
 		},
 		dataBuffer: NewLoopBuffer(BlockMaxSize),
 	}
+	c.logger.Printf("InboundConnection %d created.\n", connectionID)
 	return &c
 }
 

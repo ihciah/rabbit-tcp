@@ -35,6 +35,7 @@ func NewOutboundConnection(connectionID uint32, sendQueue chan<- block.Block, ct
 		},
 		ctx: ctx,
 	}
+	c.logger.Printf("OutboundConnection %d created.\n", connectionID)
 	return &c
 }
 
