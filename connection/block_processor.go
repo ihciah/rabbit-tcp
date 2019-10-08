@@ -28,6 +28,7 @@ func newBlockProcessor(ctx context.Context) blockProcessor {
 }
 
 // Join blocks and send buffer to connection
+// TODO: If waiting a packet for TIMEOUT, break the connection; otherwise re-countdown for next waiting packet.
 func (x *blockProcessor) OrderedRelay(connection Connection) {
 	x.logger.Printf("Ordered Relay of Connection %d started.\n", connection.GetConnectionID())
 	for {

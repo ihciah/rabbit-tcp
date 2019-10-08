@@ -67,24 +67,49 @@ func (tunnel *Tunnel) recvPeerID() error {
 }
 
 // Read block from send channel, pack it and send
-func (tunnel *Tunnel) OutboundRelay(input chan block.Block) {
+func (tunnel *Tunnel) OutboundRelay(normalQueue, retryQueue chan block.Block) {
 	tunnel.logger.Println("Outbound relay started.")
 	for {
+		// cancel is of highest priority
 		select {
 		case <-tunnel.ctx.Done():
 			return
-		case blk := <-input:
-			dataToSend := blk.Pack()
-			reader := bytes.NewReader(dataToSend)
-			n, err := io.Copy(tunnel.Conn, reader)
-			if err != nil || n != int64(len(dataToSend)) {
-				tunnel.logger.Printf("Error when send bytes to tunnel: (n: %d, error: %v).\n", n, err)
-				// Tunnel down and message has not been fully sent.
-				tunnel.cancel()
-			} else {
-				tunnel.logger.Printf("Copied data to tunnel successfully(n: %d).\n", n)
-			}
+		default:
 		}
+		// retryQueue is of secondary highest priority
+		select {
+		case <-tunnel.ctx.Done():
+			return
+		case blk := <-retryQueue:
+			tunnel.packThenSend(blk, retryQueue)
+		default:
+		}
+		// normalQueue is of secondary highest priority
+		select {
+		case <-tunnel.ctx.Done():
+			return
+		case blk := <-retryQueue:
+			tunnel.packThenSend(blk, retryQueue)
+		case blk := <-normalQueue:
+			tunnel.packThenSend(blk, retryQueue)
+		}
+	}
+}
+
+func (tunnel *Tunnel) packThenSend(blk block.Block, retryQueue chan block.Block) {
+	dataToSend := blk.Pack()
+	reader := bytes.NewReader(dataToSend)
+	n, err := io.Copy(tunnel.Conn, reader)
+	if err != nil || n != int64(len(dataToSend)) {
+		tunnel.logger.Printf("Error when send bytes to tunnel: (n: %d, error: %v).\n", n, err)
+		// Tunnel down and message has not been fully sent.
+		tunnel.cancel()
+		go func() {
+			retryQueue <- blk
+		}()
+		// Use new goroutine to avoid channel blocked
+	} else {
+		tunnel.logger.Printf("Copied data to tunnel successfully(n: %d).\n", n)
 	}
 }
 

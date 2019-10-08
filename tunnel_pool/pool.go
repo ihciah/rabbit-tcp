@@ -14,28 +14,30 @@ const (
 )
 
 type TunnelPool struct {
-	mutex         sync.Mutex
-	tunnelMapping map[uint32]*Tunnel
-	peerID        uint32
-	manager       Manager
-	sendQueue     chan block.Block
-	recvQueue     chan block.Block
-	ctx           context.Context
-	cancel        context.CancelFunc // currently useless
-	logger        *log.Logger
+	mutex          sync.Mutex
+	tunnelMapping  map[uint32]*Tunnel
+	peerID         uint32
+	manager        Manager
+	sendQueue      chan block.Block
+	sendRetryQueue chan block.Block
+	recvQueue      chan block.Block
+	ctx            context.Context
+	cancel         context.CancelFunc // currently useless
+	logger         *log.Logger
 }
 
 func NewTunnelPool(peerID uint32, manager Manager, peerContext context.Context) TunnelPool {
 	ctx, cancel := context.WithCancel(peerContext)
 	tp := TunnelPool{
-		tunnelMapping: make(map[uint32]*Tunnel),
-		peerID:        peerID,
-		manager:       manager,
-		sendQueue:     make(chan block.Block, SendQueueSize),
-		recvQueue:     make(chan block.Block, RecvQueueSize),
-		ctx:           ctx,
-		cancel:        cancel,
-		logger:        log.New(os.Stdout, "[TunnelPool]", log.LstdFlags),
+		tunnelMapping:  make(map[uint32]*Tunnel),
+		peerID:         peerID,
+		manager:        manager,
+		sendQueue:      make(chan block.Block, SendQueueSize),
+		sendRetryQueue: make(chan block.Block, SendQueueSize),
+		recvQueue:      make(chan block.Block, RecvQueueSize),
+		ctx:            ctx,
+		cancel:         cancel,
+		logger:         log.New(os.Stdout, "[TunnelPool]", log.LstdFlags),
 	}
 	tp.logger.Printf("Tunnel Pool of peer %d created.\n", peerID)
 	go manager.DecreaseNotify(&tp)
@@ -57,7 +59,7 @@ func (tp *TunnelPool) AddTunnel(tunnel *Tunnel) {
 		tp.RemoveTunnel(tunnel)
 	}()
 
-	go tunnel.OutboundRelay(tp.sendQueue)
+	go tunnel.OutboundRelay(tp.sendQueue, tp.sendRetryQueue)
 	go tunnel.InboundRelay(tp.recvQueue)
 }
 
