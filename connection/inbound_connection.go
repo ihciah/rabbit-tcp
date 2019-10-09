@@ -21,13 +21,12 @@ func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, rem
 	connectionID := rand.Uint32()
 	c := InboundConnection{
 		baseConnection: baseConnection{
-			blockProcessor:   newBlockProcessor(ctx),
+			blockProcessor:   newBlockProcessor(ctx, removeFromPool),
 			connectionID:     connectionID,
 			ok:               true,
 			sendQueue:        sendQueue,
 			recvQueue:        make(chan block.Block, RecvQueueSize),
 			orderedRecvQueue: make(chan block.Block, OrderedRecvQueueSize),
-			removeFromPool:   removeFromPool,
 			logger:           log.New(os.Stdout, fmt.Sprintf("[InboundConnection-%d]", connectionID), log.LstdFlags),
 		},
 		dataBuffer: NewLoopBuffer(BlockMaxSize),

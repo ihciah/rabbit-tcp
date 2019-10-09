@@ -1,7 +1,6 @@
 package connection
 
 import (
-	"context"
 	"github.com/ihciah/rabbit-tcp/block"
 	"log"
 	"net"
@@ -35,12 +34,11 @@ type baseConnection struct {
 	sendQueue        chan<- block.Block // Same as connectionPool
 	recvQueue        chan block.Block
 	orderedRecvQueue chan block.Block
-	removeFromPool   context.CancelFunc
 	logger           *log.Logger
 }
 
 func (bc *baseConnection) Stop() {
-	bc.removeFromPool()
+	bc.blockProcessor.removeFromPool()
 }
 
 func (bc *baseConnection) OrderedRelay(connection Connection) {

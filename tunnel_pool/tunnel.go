@@ -123,6 +123,7 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 		default:
 			blk, err := block.NewBlockFromReader(tunnel.Conn)
 			if err != nil {
+				// Server will never close connection in normal cases
 				tunnel.logger.Printf("Error when receiving block from tunnel: %v.\n", err)
 				// Tunnel down and message has not been fully read.
 				tunnel.cancel()

@@ -98,7 +98,7 @@ func (cp *ConnectionPool) recvRelay() {
 			conn.RecvBlock(blk)
 			cp.logger.Printf("Block %d(type: %d) put to connRecvQueue.\n", blk.BlockID, blk.Type)
 		case <-cp.ctx.Done():
-			cp.logger.Println("Recv Relay stoped.")
+			cp.logger.Println("Recv Relay stopped.")
 			return
 		}
 	}
@@ -114,7 +114,7 @@ func (cp *ConnectionPool) sendRelay() {
 			cp.tunnelPool.GetSendQueue() <- blk
 			cp.logger.Printf("Block %d(type: %d) put to connSendQueue.\n", blk.BlockID, blk.Type)
 		case <-cp.ctx.Done():
-			cp.logger.Printf("Send Relay stoped.\n")
+			cp.logger.Println("Send Relay stopped.")
 			return
 		}
 	}

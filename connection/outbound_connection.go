@@ -24,10 +24,9 @@ type OutboundConnection struct {
 func NewOutboundConnection(connectionID uint32, sendQueue chan<- block.Block, ctx context.Context, removeFromPool context.CancelFunc) Connection {
 	c := OutboundConnection{
 		baseConnection: baseConnection{
-			blockProcessor:   newBlockProcessor(ctx),
+			blockProcessor:   newBlockProcessor(ctx, removeFromPool),
 			connectionID:     connectionID,
 			ok:               false,
-			removeFromPool:   removeFromPool,
 			sendQueue:        sendQueue,
 			recvQueue:        make(chan block.Block, RecvQueueSize),
 			orderedRecvQueue: make(chan block.Block, OrderedRecvQueueSize),
