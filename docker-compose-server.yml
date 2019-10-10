@@ -1,0 +1,10 @@
+rabbit-server:
+  image: ihciah/rabbit
+  ports:
+    - "9891:9891/tcp"
+  environment:
+    - MODE=s
+    - PASSWORD=dogdog
+    - RABBITADDR=:9891
+    - VERBOSE=2
+  restart: always

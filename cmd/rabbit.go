@@ -43,7 +43,7 @@ func parseFlags() (int, string, string, string, string, int, int) {
 		log.Panicf("Unsupported mode %s.\n", modeString)
 	}
 
-	if password == DefaultPassword {
+	if password == "" || password == DefaultPassword {
 		log.Panicln("Password must be changed instead of default password.")
 	}
 

@@ -1,0 +1,13 @@
+rabbit-client:
+  image: ihciah/rabbit
+  ports:
+    - "9892:9892/tcp"
+  environment:
+    - MODE=c
+    - PASSWORD=dogdog
+    - RABBITADDR=your.server:9891
+    - LISTEN=:9892
+    - DEST=your.service:port
+    - TUNNELN=6
+    - VERBOSE=2
+  restart: always
