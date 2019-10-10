@@ -12,7 +12,8 @@ const (
 	BLOCK_TYPE_DATA
 
 	BLOCK_HEADER_SIZE = 1 + 4 + 4 + 4
-	BLOCK_DATA_SIZE   = 1000
+	BLOCK_DATA_SIZE   = 60000
+	BLOCK_MAX_SIZE    = BLOCK_HEADER_SIZE + BLOCK_DATA_SIZE
 )
 
 type Block struct {
@@ -21,16 +22,20 @@ type Block struct {
 	BlockID      uint32 // 4 bytes
 	BlockLength  uint32 // 4 bytes
 	BlockData    []byte
+	packed       []byte
 }
 
 func (block *Block) Pack() []byte {
-	packedData := make([]byte, BLOCK_HEADER_SIZE+len(block.BlockData))
-	packedData[0] = block.Type
-	binary.LittleEndian.PutUint32(packedData[1:], block.ConnectionID)
-	binary.LittleEndian.PutUint32(packedData[5:], block.BlockID)
-	binary.LittleEndian.PutUint32(packedData[9:], block.BlockLength)
-	copy(packedData[BLOCK_HEADER_SIZE:], block.BlockData)
-	return packedData
+	if block.packed != nil {
+		return block.packed
+	}
+	block.packed = make([]byte, BLOCK_HEADER_SIZE+len(block.BlockData))
+	block.packed[0] = block.Type
+	binary.LittleEndian.PutUint32(block.packed[1:], block.ConnectionID)
+	binary.LittleEndian.PutUint32(block.packed[5:], block.BlockID)
+	binary.LittleEndian.PutUint32(block.packed[9:], block.BlockLength)
+	copy(block.packed[BLOCK_HEADER_SIZE:], block.BlockData)
+	return block.packed
 }
 
 func NewBlockFromReader(reader io.Reader) (*Block, error) {
@@ -66,15 +71,16 @@ func NewConnectBlock(connectID uint32, blockID uint32, address string) Block {
 }
 
 func newDataBlock(connectID uint32, blockID uint32, data []byte) Block {
-	dataCopy := make([]byte, len(data))
-	copy(dataCopy, data)
-	return Block{
+	// We should copy data now
+	blk := Block{
 		Type:         BLOCK_TYPE_DATA,
 		ConnectionID: connectID,
 		BlockID:      blockID,
-		BlockLength:  uint32(len(dataCopy)),
-		BlockData:    dataCopy,
+		BlockLength:  uint32(len(data)),
+		BlockData:    data,
 	}
+	blk.Pack()
+	return blk
 }
 
 func NewDataBlocks(connectID uint32, blockID *atomic.Uint32, data []byte) []Block {
