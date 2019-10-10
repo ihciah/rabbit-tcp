@@ -2,24 +2,23 @@ package client
 
 import (
 	"context"
+	"github.com/ihciah/rabbit-tcp/logger"
 	"github.com/ihciah/rabbit-tcp/peer"
 	"github.com/ihciah/rabbit-tcp/tunnel"
 	"io"
-	"log"
 	"net"
-	"os"
 	"time"
 )
 
 type Client struct {
 	peer   peer.ClientPeer
-	logger *log.Logger
+	logger *logger.Logger
 }
 
 func NewClient(tunnelNum int, endpoint string, cipher tunnel.Cipher) Client {
 	return Client{
 		peer:   peer.NewClientPeer(tunnelNum, endpoint, cipher),
-		logger: log.New(os.Stdout, "[Client]", log.LstdFlags),
+		logger: logger.NewLogger("[Client]"),
 	}
 }
 
@@ -35,27 +34,29 @@ func (c *Client) ServeForward(listen, dest string) error {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			c.logger.Printf("Error when accept connection: %v.\n", err)
+			c.logger.Errorf("Error when accept connection: %v.\n", err)
+			continue
 		}
+		c.logger.Infoln("Accepted a connection.")
 		connProxy := c.Dial(dest)
-		biRelay(conn, connProxy)
+		go biRelay(conn, connProxy)
 	}
 }
 
 func biRelay(left, right net.Conn) {
 	ctx, cancel := context.WithCancel(context.Background())
-	go relay(left, right, ctx, cancel)
-	go relay(right, left, ctx, cancel)
+	go relay(left, right, cancel)
+	go relay(right, left, cancel)
 	<-ctx.Done()
 	left.Close()
 	right.Close()
 }
 
-func relay(dst, src net.Conn, ctx context.Context, cancel context.CancelFunc) {
+func relay(dst, src net.Conn, cancel context.CancelFunc) {
 	_, err := io.Copy(dst, src)
 	if err != nil {
-		cancel()
 		dst.SetDeadline(time.Now())
 		src.SetDeadline(time.Now())
+		cancel()
 	}
 }

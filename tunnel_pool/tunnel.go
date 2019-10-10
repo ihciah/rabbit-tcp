@@ -6,12 +6,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/ihciah/rabbit-tcp/block"
+	"github.com/ihciah/rabbit-tcp/logger"
 	"github.com/ihciah/rabbit-tcp/tunnel"
 	"io"
-	"log"
 	"math/rand"
 	"net"
-	"os"
 )
 
 type Tunnel struct {
@@ -20,7 +19,7 @@ type Tunnel struct {
 	cancel   context.CancelFunc
 	tunnelID uint32
 	peerID   uint32
-	logger   *log.Logger
+	logger   *logger.Logger
 }
 
 // Create a new tunnel from a net.Conn and cipher with random tunnelID
@@ -41,9 +40,9 @@ func newTunnelWithID(conn net.Conn, ciph tunnel.Cipher, peerID uint32) Tunnel {
 		Conn:     tunnel.NewEncryptedConn(conn, ciph),
 		peerID:   peerID,
 		tunnelID: tunnelID,
-		logger:   log.New(os.Stdout, fmt.Sprintf("[Tunnel-%d]", tunnelID), log.LstdFlags),
+		logger:   logger.NewLogger(fmt.Sprintf("[Tunnel-%d]", tunnelID)),
 	}
-	tun.logger.Println("Tunnel created.")
+	tun.logger.Infoln("Tunnel created.")
 	return tun
 }
 
@@ -51,24 +50,29 @@ func (tunnel *Tunnel) sendPeerID() error {
 	peerIDBuffer := make([]byte, 4)
 	binary.LittleEndian.PutUint32(peerIDBuffer, tunnel.peerID)
 	_, err := io.CopyN(tunnel.Conn, bytes.NewReader(peerIDBuffer), 4)
-	tunnel.logger.Printf("Peer id sent with error:%v.\n", err)
-	return err
+	if err != nil {
+		tunnel.logger.Errorf("Peer id sent with error:%v.\n", err)
+		return err
+	}
+	tunnel.logger.Debugln("Peer id sent.")
+	return nil
 }
 
 func (tunnel *Tunnel) recvPeerID() error {
 	peerIDBuffer := make([]byte, 4)
 	_, err := io.ReadFull(tunnel.Conn, peerIDBuffer)
 	if err != nil {
+		tunnel.logger.Errorf("Peer id recv with error:%v.\n", err)
 		return err
 	}
 	tunnel.peerID = binary.LittleEndian.Uint32(peerIDBuffer)
-	tunnel.logger.Println("Peer id recv.")
+	tunnel.logger.Debugln("Peer id recv.")
 	return nil
 }
 
 // Read block from send channel, pack it and send
 func (tunnel *Tunnel) OutboundRelay(normalQueue, retryQueue chan block.Block) {
-	tunnel.logger.Println("Outbound relay started.")
+	tunnel.logger.Infoln("Outbound relay started.")
 	for {
 		// cancel is of highest priority
 		select {
@@ -101,7 +105,7 @@ func (tunnel *Tunnel) packThenSend(blk block.Block, retryQueue chan block.Block)
 	reader := bytes.NewReader(dataToSend)
 	n, err := io.Copy(tunnel.Conn, reader)
 	if err != nil || n != int64(len(dataToSend)) {
-		tunnel.logger.Printf("Error when send bytes to tunnel: (n: %d, error: %v).\n", n, err)
+		tunnel.logger.Warnf("Error when send bytes to tunnel: (n: %d, error: %v).\n", n, err)
 		// Tunnel down and message has not been fully sent.
 		tunnel.cancel()
 		go func() {
@@ -109,13 +113,13 @@ func (tunnel *Tunnel) packThenSend(blk block.Block, retryQueue chan block.Block)
 		}()
 		// Use new goroutine to avoid channel blocked
 	} else {
-		tunnel.logger.Printf("Copied data to tunnel successfully(n: %d).\n", n)
+		tunnel.logger.Debugf("Copied data to tunnel successfully(n: %d).\n", n)
 	}
 }
 
 // Read bytes from connection, parse it to block then put in recv channel
 func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
-	tunnel.logger.Println("Inbound relay started.")
+	tunnel.logger.Infoln("Inbound relay started.")
 	for {
 		select {
 		case <-tunnel.ctx.Done():
@@ -124,11 +128,11 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 			blk, err := block.NewBlockFromReader(tunnel.Conn)
 			if err != nil {
 				// Server will never close connection in normal cases
-				tunnel.logger.Printf("Error when receiving block from tunnel: %v.\n", err)
+				tunnel.logger.Errorf("Error when receiving block from tunnel: %v.\n", err)
 				// Tunnel down and message has not been fully read.
 				tunnel.cancel()
 			} else {
-				tunnel.logger.Printf("Block received from tunnel(type: %d)successfully.\n", blk.Type)
+				tunnel.logger.Debugf("Block received from tunnel(type: %d)successfully.\n", blk.Type)
 				output <- *blk
 			}
 		}

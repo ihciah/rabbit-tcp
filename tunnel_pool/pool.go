@@ -3,8 +3,7 @@ package tunnel_pool
 import (
 	"context"
 	"github.com/ihciah/rabbit-tcp/block"
-	"log"
-	"os"
+	"github.com/ihciah/rabbit-tcp/logger"
 	"sync"
 )
 
@@ -23,7 +22,7 @@ type TunnelPool struct {
 	recvQueue      chan block.Block
 	ctx            context.Context
 	cancel         context.CancelFunc // currently useless
-	logger         *log.Logger
+	logger         *logger.Logger
 }
 
 func NewTunnelPool(peerID uint32, manager Manager, peerContext context.Context) TunnelPool {
@@ -37,16 +36,16 @@ func NewTunnelPool(peerID uint32, manager Manager, peerContext context.Context) 
 		recvQueue:      make(chan block.Block, RecvQueueSize),
 		ctx:            ctx,
 		cancel:         cancel,
-		logger:         log.New(os.Stdout, "[TunnelPool]", log.LstdFlags),
+		logger:         logger.NewLogger("[TunnelPool]"),
 	}
-	tp.logger.Printf("Tunnel Pool of peer %d created.\n", peerID)
+	tp.logger.Infof("Tunnel Pool of peer %d created.\n", peerID)
 	go manager.DecreaseNotify(&tp)
 	return tp
 }
 
 // Add a tunnel to tunnelPool and start bi-relay
 func (tp *TunnelPool) AddTunnel(tunnel *Tunnel) {
-	tp.logger.Printf("Tunnel %d added to Peer %d.\n", tunnel.tunnelID, tp.peerID)
+	tp.logger.Infof("Tunnel %d added to Peer %d.\n", tunnel.tunnelID, tp.peerID)
 	tp.mutex.Lock()
 	defer tp.mutex.Unlock()
 
@@ -65,7 +64,7 @@ func (tp *TunnelPool) AddTunnel(tunnel *Tunnel) {
 
 // Remove a tunnel from tunnelPool and stop bi-relay
 func (tp *TunnelPool) RemoveTunnel(tunnel *Tunnel) {
-	tp.logger.Printf("Tunnel %d to peer %d removed from pool.\n", tunnel.tunnelID, tunnel.peerID)
+	tp.logger.Infof("Tunnel %d to peer %d removed from pool.\n", tunnel.tunnelID, tunnel.peerID)
 	tp.mutex.Lock()
 	defer tp.mutex.Unlock()
 	if tunnel, ok := tp.tunnelMapping[tunnel.tunnelID]; ok {

@@ -2,11 +2,10 @@ package peer
 
 import (
 	"context"
+	"github.com/ihciah/rabbit-tcp/logger"
 	"github.com/ihciah/rabbit-tcp/tunnel"
 	"github.com/ihciah/rabbit-tcp/tunnel_pool"
-	"log"
 	"net"
-	"os"
 	"sync"
 )
 
@@ -14,7 +13,7 @@ type PeerGroup struct {
 	lock        sync.Mutex
 	cipher      tunnel.Cipher
 	peerMapping map[uint32]*ServerPeer
-	logger      *log.Logger
+	logger      *logger.Logger
 }
 
 func NewPeerGroup(cipher tunnel.Cipher) PeerGroup {
@@ -24,7 +23,7 @@ func NewPeerGroup(cipher tunnel.Cipher) PeerGroup {
 	return PeerGroup{
 		cipher:      cipher,
 		peerMapping: make(map[uint32]*ServerPeer),
-		logger:      log.New(os.Stdout, "[PeerGroup]", log.LstdFlags),
+		logger:      logger.NewLogger("[PeerGroup]"),
 	}
 }
 
@@ -41,7 +40,7 @@ func (pg *PeerGroup) AddTunnel(tunnel *tunnel_pool.Tunnel) error {
 		serverPeer := NewServerPeerWithID(peerID, peerContext, removePeerFunc)
 		peer = &serverPeer
 		pg.peerMapping[peerID] = peer
-		pg.logger.Printf("Server Peer %d added to PeerGroup.\n", peerID)
+		pg.logger.Infof("Server Peer %d added to PeerGroup.\n", peerID)
 
 		go func() {
 			<-peerContext.Done()
@@ -63,7 +62,7 @@ func (pg *PeerGroup) AddTunnelFromConn(conn net.Conn) error {
 }
 
 func (pg *PeerGroup) RemovePeer(peerID uint32) {
-	pg.logger.Printf("Server Peer %d removed from peer group.\n", peerID)
+	pg.logger.Infof("Server Peer %d removed from peer group.\n", peerID)
 	pg.lock.Lock()
 	defer pg.lock.Unlock()
 	delete(pg.peerMapping, peerID)

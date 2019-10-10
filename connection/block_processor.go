@@ -3,21 +3,20 @@ package connection
 import (
 	"context"
 	"github.com/ihciah/rabbit-tcp/block"
+	"github.com/ihciah/rabbit-tcp/logger"
 	"go.uber.org/atomic"
-	"log"
-	"os"
 	"time"
 )
 
 const (
-	PACKET_WAIT_TIMEOUT = 7
+	PacketWaitTimeoutSec = 7
 )
 
 // 1. Join blocks from chan to connection orderedRecvQueue
 // 2. Send bytes or control block
 type blockProcessor struct {
 	cache          map[uint32]block.Block
-	logger         *log.Logger
+	logger         *logger.Logger
 	relayCtx       context.Context
 	removeFromPool context.CancelFunc
 
@@ -31,14 +30,14 @@ func newBlockProcessor(ctx context.Context, removeFromPool context.CancelFunc) b
 		cache:          make(map[uint32]block.Block),
 		relayCtx:       ctx,
 		removeFromPool: removeFromPool,
-		logger:         log.New(os.Stdout, "[BlockProcessor]", log.LstdFlags),
+		logger:         logger.NewLogger("[BlockProcessor]"),
 	}
 }
 
 // Join blocks and send buffer to connection
 // TODO: If waiting a packet for TIMEOUT, break the connection; otherwise re-countdown for next waiting packet.
 func (x *blockProcessor) OrderedRelay(connection Connection) {
-	x.logger.Printf("Ordered Relay of Connection %d started.\n", connection.GetConnectionID())
+	x.logger.Infof("Ordered Relay of Connection %d started.\n", connection.GetConnectionID())
 	for {
 		select {
 		case blk := <-connection.getRecvQueue():
@@ -48,7 +47,7 @@ func (x *blockProcessor) OrderedRelay(connection Connection) {
 			}
 			if x.recvBlockID == blk.BlockID {
 				// Can send directly
-				x.logger.Printf("Send Block %d directly\n", blk.BlockID)
+				x.logger.Debugf("Send Block %d directly\n", blk.BlockID)
 				connection.getOrderedRecvQueue() <- blk
 				x.recvBlockID++
 				for {
@@ -56,7 +55,7 @@ func (x *blockProcessor) OrderedRelay(connection Connection) {
 					if !ok {
 						break
 					}
-					x.logger.Printf("Send Block %d from cache\n", blk.BlockID)
+					x.logger.Debugf("Send Block %d from cache\n", blk.BlockID)
 					connection.getOrderedRecvQueue() <- blk
 					delete(x.cache, x.recvBlockID)
 					x.recvBlockID++
@@ -65,22 +64,22 @@ func (x *blockProcessor) OrderedRelay(connection Connection) {
 				// Cannot send directly
 				if blk.BlockID < x.recvBlockID {
 					// We don't need this old block
-					x.logger.Printf("Block %d is too old to cache\n", blk.BlockID)
+					x.logger.Debugf("Block %d is too old to cache\n", blk.BlockID)
 					continue
 				}
-				x.logger.Printf("Put Block %d to cache\n", blk.BlockID)
+				x.logger.Debugf("Put Block %d to cache\n", blk.BlockID)
 				x.cache[blk.BlockID] = blk
 			}
-		case <-time.After(PACKET_WAIT_TIMEOUT * time.Second):
-			x.logger.Printf("Packet wait time exceed of Connection %d.\n", connection.GetConnectionID())
+		case <-time.After(PacketWaitTimeoutSec * time.Second):
+			x.logger.Debugf("Packet wait time exceed of Connection %d.\n", connection.GetConnectionID())
 			if x.recvBlockID == x.lastRecvBlockID {
-				x.logger.Printf("Connection %d is not in waiting status, continue.\n", connection.GetConnectionID())
+				x.logger.Debugf("Connection %d is not in waiting status, continue.\n", connection.GetConnectionID())
 				continue
 			}
-			x.logger.Printf("Connection %d will be killed due to timeout.\n", connection.GetConnectionID())
+			x.logger.Warnf("Connection %d is going to be killed due to timeout.\n", connection.GetConnectionID())
 			x.removeFromPool()
 		case <-x.relayCtx.Done():
-			x.logger.Printf("Ordered Relay of Connection %d stoped.\n", connection.GetConnectionID())
+			x.logger.Infof("Ordered Relay of Connection %d stopped.\n", connection.GetConnectionID())
 			return
 		}
 	}

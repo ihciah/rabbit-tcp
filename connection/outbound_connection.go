@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/ihciah/rabbit-tcp/block"
+	"github.com/ihciah/rabbit-tcp/logger"
 	"io"
-	"log"
 	"net"
-	"os"
 )
 
 const (
-	OutboundRecvBuffer = 2048
+	OutboundRecvBuffer = 16 * 1024 // 16K
 )
 
 type OutboundConnection struct {
@@ -30,11 +29,11 @@ func NewOutboundConnection(connectionID uint32, sendQueue chan<- block.Block, ct
 			sendQueue:        sendQueue,
 			recvQueue:        make(chan block.Block, RecvQueueSize),
 			orderedRecvQueue: make(chan block.Block, OrderedRecvQueueSize),
-			logger:           log.New(os.Stdout, fmt.Sprintf("[OutboundConnection-%d]", connectionID), log.LstdFlags),
+			logger:           logger.NewLogger(fmt.Sprintf("[OutboundConnection-%d]", connectionID)),
 		},
 		ctx: ctx,
 	}
-	c.logger.Printf("OutboundConnection %d created.\n", connectionID)
+	c.logger.Infof("OutboundConnection %d created.\n", connectionID)
 	return &c
 }
 
@@ -46,14 +45,14 @@ func (oc *OutboundConnection) RecvRelay() {
 		if err == nil {
 			oc.sendData(recvBuffer[:n])
 		} else if err == io.EOF {
-			oc.logger.Println("EOF received from outbound connection.")
+			oc.logger.Debugln("EOF received from outbound connection.")
 			oc.ok = false
 			oc.SendDisconnect()
 			oc.Conn.Close()
 			// TODO: error handle
 			return
 		} else {
-			oc.logger.Printf("Error when relay outbound connection: %v\n.", err)
+			oc.logger.Errorf("Error when relay outbound connection: %v\n.", err)
 			oc.ok = false
 			oc.SendDisconnect()
 			oc.Conn.Close()
@@ -76,16 +75,16 @@ func (oc *OutboundConnection) SendRelay() {
 		case blk := <-oc.orderedRecvQueue:
 			var err error
 			switch blk.Type {
-			case block.BLOCK_TYPE_CONNECT:
+			case block.TypeConnect:
 				// Will do nothing!
 				continue
-			case block.BLOCK_TYPE_DATA:
-				oc.logger.Println("Received DATA block.")
+			case block.TypeData:
+				oc.logger.Debugln("Received DATA block.")
 				if oc.ok {
 					_, err = oc.Conn.Write(blk.BlockData)
 				}
-			case block.BLOCK_TYPE_DISCONNECT:
-				oc.logger.Println("Received DISCONNECT block.")
+			case block.TypeDisconnect:
+				oc.logger.Debugln("Received DISCONNECT block.")
 				if oc.ok {
 					oc.ok = false
 					err = oc.Conn.Close()
@@ -106,7 +105,7 @@ func (oc *OutboundConnection) SendRelay() {
 }
 
 func (oc *OutboundConnection) RecvBlock(blk block.Block) {
-	if blk.Type == block.BLOCK_TYPE_CONNECT {
+	if blk.Type == block.TypeConnect {
 		address := string(blk.BlockData)
 		go oc.connect(address)
 	}
@@ -114,19 +113,19 @@ func (oc *OutboundConnection) RecvBlock(blk block.Block) {
 }
 
 func (oc *OutboundConnection) connect(address string) {
-	oc.logger.Println("Received CONNECTION block.")
+	oc.logger.Debugln("Received CONNECTION block.")
 	if oc.ok || oc.Conn != nil {
 		return
 	}
 	rawConn, err := net.Dial("tcp", address)
 	if err == nil {
-		oc.logger.Printf("Dail to %s successfully.\n", address)
+		oc.logger.Infof("Dail to %s successfully.\n", address)
 		oc.Conn = rawConn
 		oc.ok = true
 		go oc.RecvRelay()
 		go oc.SendRelay()
 	} else {
-		oc.logger.Printf("Error when dail to %s: %v.\n", address, err)
+		oc.logger.Warnf("Error when dail to %s: %v.\n", address, err)
 		oc.SendDisconnect()
 	}
 }

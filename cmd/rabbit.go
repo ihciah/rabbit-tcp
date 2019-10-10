@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"github.com/ihciah/rabbit-tcp/client"
+	"github.com/ihciah/rabbit-tcp/logger"
 	"github.com/ihciah/rabbit-tcp/server"
 	"github.com/ihciah/rabbit-tcp/tunnel"
 	"log"
@@ -10,12 +11,12 @@ import (
 )
 
 const (
-	CLIENT_MODE = iota
-	SERVER_MODE
-	DEFAULT_PASSWORD = "PASSWORD"
+	ClientMode = iota
+	ServerMode
+	DefaultPassword = "PASSWORD"
 )
 
-func parseFlags() (int, string, string, string, string, int) {
+func parseFlags() (int, string, string, string, string, int, int) {
 	var mode int
 	var modeString string
 	var password string
@@ -23,28 +24,30 @@ func parseFlags() (int, string, string, string, string, int) {
 	var listen string
 	var dest string
 	var tunnelN int
+	var verbose int
 	flag.StringVar(&modeString, "mode", "c", "running mode(s or c)")
-	flag.StringVar(&password, "password", DEFAULT_PASSWORD, "password")
+	flag.StringVar(&password, "password", DefaultPassword, "password")
 	flag.StringVar(&addr, "rabbit-addr", ":443", "listen(server mode) or remote(client mode) address used by rabbit-tcp")
 	flag.StringVar(&listen, "listen", "", "[Client Only] listen address, eg: 127.0.0.1:2333")
 	flag.StringVar(&dest, "dest", "", "[Client Only] destination address, eg: shadowsocks server address")
 	flag.IntVar(&tunnelN, "tunnelN", 6, "[Client Only] number of tunnels to use in rabbit-tcp")
+	flag.IntVar(&verbose, "verbose", 2, "Verbose level(0~5)")
 	flag.Parse()
 
 	modeString = strings.ToLower(modeString)
 	if modeString == "c" || modeString == "client" {
-		mode = CLIENT_MODE
+		mode = ClientMode
 	} else if modeString == "s" || modeString == "server" {
-		mode = SERVER_MODE
+		mode = ServerMode
 	} else {
 		log.Panicf("Unsupported mode %s.\n", modeString)
 	}
 
-	if password == DEFAULT_PASSWORD {
+	if password == DefaultPassword {
 		log.Panicln("Password must be changed instead of default password.")
 	}
 
-	if mode == CLIENT_MODE {
+	if mode == ClientMode {
 		if listen == "" {
 			log.Panicln("Listen address must be specified in client mode.")
 		}
@@ -55,13 +58,14 @@ func parseFlags() (int, string, string, string, string, int) {
 			log.Panicln("Tunnel number must be positive.")
 		}
 	}
-	return mode, password, addr, listen, dest, tunnelN
+	return mode, password, addr, listen, dest, tunnelN, verbose
 }
 
 func main() {
-	mode, password, addr, listen, dest, tunnelN := parseFlags()
+	mode, password, addr, listen, dest, tunnelN, verbose := parseFlags()
 	cipher, _ := tunnel.NewAEADCipher("CHACHA20-IETF-POLY1305", nil, password)
-	if mode == CLIENT_MODE {
+	logger.LEVEL = verbose
+	if mode == ClientMode {
 		c := client.NewClient(tunnelN, addr, cipher)
 		c.ServeForward(listen, dest)
 	} else {

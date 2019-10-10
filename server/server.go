@@ -1,22 +1,21 @@
 package server
 
 import (
+	"github.com/ihciah/rabbit-tcp/logger"
 	"github.com/ihciah/rabbit-tcp/peer"
 	"github.com/ihciah/rabbit-tcp/tunnel"
-	"log"
 	"net"
-	"os"
 )
 
 type Server struct {
 	peerGroup peer.PeerGroup
-	logger    *log.Logger
+	logger    *logger.Logger
 }
 
 func NewServer(cipher tunnel.Cipher) Server {
 	return Server{
 		peerGroup: peer.NewPeerGroup(cipher),
-		logger:    log.New(os.Stdout, "[Server]", log.LstdFlags),
+		logger:    logger.NewLogger("[Server]"),
 	}
 }
 
@@ -28,11 +27,12 @@ func (s *Server) Serve(address string) error {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			s.logger.Printf("Error when accept connection: %v.\n", err)
+			s.logger.Errorf("Error when accept connection: %v.\n", err)
+			continue
 		}
 		err = s.peerGroup.AddTunnelFromConn(conn)
 		if err != nil {
-			s.logger.Printf("Error when add tunnel to tunnel pool: %v.\n", err)
+			s.logger.Errorf("Error when add tunnel to tunnel pool: %v.\n", err)
 		}
 	}
 }

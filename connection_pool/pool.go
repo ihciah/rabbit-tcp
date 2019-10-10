@@ -4,14 +4,13 @@ import (
 	"context"
 	"github.com/ihciah/rabbit-tcp/block"
 	"github.com/ihciah/rabbit-tcp/connection"
+	"github.com/ihciah/rabbit-tcp/logger"
 	"github.com/ihciah/rabbit-tcp/tunnel_pool"
-	"log"
-	"os"
 	"sync"
 )
 
 const (
-	SendQueueSize = 24
+	SendQueueSize = 48
 )
 
 type ConnectionPool struct {
@@ -19,7 +18,7 @@ type ConnectionPool struct {
 	mappingLock       sync.Mutex
 	tunnelPool        *tunnel_pool.TunnelPool
 	sendQueue         chan block.Block
-	logger            *log.Logger
+	logger            *logger.Logger
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -31,11 +30,11 @@ func NewConnectionPool(pool *tunnel_pool.TunnelPool, backgroundCtx context.Conte
 		connectionMapping: make(map[uint32]connection.Connection),
 		tunnelPool:        pool,
 		sendQueue:         make(chan block.Block, SendQueueSize),
-		logger:            log.New(os.Stdout, "[ConnectionPool]", log.LstdFlags),
+		logger:            logger.NewLogger("[ConnectionPool]"),
 		ctx:               ctx,
 		cancel:            cancel,
 	}
-	cp.logger.Println("Connection Pool created.")
+	cp.logger.Infoln("Connection Pool created.")
 	go cp.sendRelay()
 	go cp.recvRelay()
 	return cp
@@ -66,7 +65,7 @@ func (cp *ConnectionPool) NewPooledOutboundConnection(connectionID uint32) conne
 }
 
 func (cp *ConnectionPool) addConnection(conn connection.Connection) {
-	cp.logger.Printf("Connection %d added to connection pool.\n", conn.GetConnectionID())
+	cp.logger.Infof("Connection %d added to connection pool.\n", conn.GetConnectionID())
 	cp.mappingLock.Lock()
 	defer cp.mappingLock.Unlock()
 	cp.connectionMapping[conn.GetConnectionID()] = conn
@@ -74,7 +73,7 @@ func (cp *ConnectionPool) addConnection(conn connection.Connection) {
 }
 
 func (cp *ConnectionPool) removeConnection(conn connection.Connection) {
-	cp.logger.Printf("Connection %d removed from connection pool.\n", conn.GetConnectionID())
+	cp.logger.Infof("Connection %d removed from connection pool.\n", conn.GetConnectionID())
 	cp.mappingLock.Lock()
 	defer cp.mappingLock.Unlock()
 	if _, ok := cp.connectionMapping[conn.GetConnectionID()]; ok {
@@ -84,7 +83,7 @@ func (cp *ConnectionPool) removeConnection(conn connection.Connection) {
 
 // Deliver blocks from tunnelPool channel to specified connections
 func (cp *ConnectionPool) recvRelay() {
-	cp.logger.Println("Recv Relay started.")
+	cp.logger.Infoln("Recv Relay started.")
 	for {
 		select {
 		case blk := <-cp.tunnelPool.GetRecvQueue():
@@ -93,12 +92,12 @@ func (cp *ConnectionPool) recvRelay() {
 			var ok bool
 			if conn, ok = cp.connectionMapping[connID]; !ok {
 				conn = cp.NewPooledOutboundConnection(blk.ConnectionID)
-				cp.logger.Println("Connection created and added to connectionPool.")
+				cp.logger.Infoln("Connection created and added to connectionPool.")
 			}
 			conn.RecvBlock(blk)
-			cp.logger.Printf("Block %d(type: %d) put to connRecvQueue.\n", blk.BlockID, blk.Type)
+			cp.logger.Debugf("Block %d(type: %d) put to connRecvQueue.\n", blk.BlockID, blk.Type)
 		case <-cp.ctx.Done():
-			cp.logger.Println("Recv Relay stopped.")
+			cp.logger.Infoln("Recv Relay stopped.")
 			return
 		}
 	}
@@ -107,20 +106,20 @@ func (cp *ConnectionPool) recvRelay() {
 // Deliver blocks from connPool's sendQueue to tunnelPool
 // TODO: Maybe QOS can be implemented here
 func (cp *ConnectionPool) sendRelay() {
-	cp.logger.Println("Send Relay started.")
+	cp.logger.Infoln("Send Relay started.")
 	for {
 		select {
 		case blk := <-cp.sendQueue:
 			cp.tunnelPool.GetSendQueue() <- blk
-			cp.logger.Printf("Block %d(type: %d) put to connSendQueue.\n", blk.BlockID, blk.Type)
+			cp.logger.Debugf("Block %d(type: %d) put to connSendQueue.\n", blk.BlockID, blk.Type)
 		case <-cp.ctx.Done():
-			cp.logger.Println("Send Relay stopped.")
+			cp.logger.Infoln("Send Relay stopped.")
 			return
 		}
 	}
 }
 
 func (cp *ConnectionPool) stopRelay() {
-	cp.logger.Println("Stop all ConnectionPool Relay.")
+	cp.logger.Infoln("Stop all ConnectionPool Relay.")
 	cp.cancel()
 }

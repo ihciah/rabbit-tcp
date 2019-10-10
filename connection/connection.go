@@ -2,14 +2,13 @@ package connection
 
 import (
 	"github.com/ihciah/rabbit-tcp/block"
-	"log"
+	"github.com/ihciah/rabbit-tcp/logger"
 	"net"
 )
 
 const (
 	OrderedRecvQueueSize = 24
 	RecvQueueSize        = 24
-	BlockMaxSize         = 4096
 )
 
 type Connection interface {
@@ -34,7 +33,7 @@ type baseConnection struct {
 	sendQueue        chan<- block.Block // Same as connectionPool
 	recvQueue        chan block.Block
 	orderedRecvQueue chan block.Block
-	logger           *log.Logger
+	logger           *logger.Logger
 }
 
 func (bc *baseConnection) Stop() {
@@ -62,20 +61,20 @@ func (bc *baseConnection) RecvBlock(blk block.Block) {
 }
 
 func (bc *baseConnection) SendConnect(address string) {
-	bc.logger.Printf("Send connect to %s block.\n", address)
+	bc.logger.Debugf("Send connect to %s block.\n", address)
 	blk := bc.blockProcessor.packConnect(address, bc.connectionID)
 	bc.sendQueue <- blk
 }
 
 func (bc *baseConnection) SendDisconnect() {
-	bc.logger.Println("Send disconnect block.")
+	bc.logger.Debugln("Send disconnect block.")
 	blk := bc.blockProcessor.packDisconnect(bc.connectionID)
 	bc.sendQueue <- blk
 	bc.Stop()
 }
 
 func (bc *baseConnection) sendData(data []byte) {
-	bc.logger.Println("Send data block.")
+	bc.logger.Debugln("Send data block.")
 	blocks := bc.blockProcessor.packData(data, bc.connectionID)
 	for _, blk := range blocks {
 		bc.sendQueue <- blk

@@ -7,13 +7,13 @@ import (
 )
 
 const (
-	BLOCK_TYPE_CONNECT = iota
-	BLOCK_TYPE_DISCONNECT
-	BLOCK_TYPE_DATA
+	TypeConnect = iota
+	TypeDisconnect
+	TypeData
 
-	BLOCK_HEADER_SIZE = 1 + 4 + 4 + 4
-	BLOCK_DATA_SIZE   = 60000
-	BLOCK_MAX_SIZE    = BLOCK_HEADER_SIZE + BLOCK_DATA_SIZE
+	HeaderSize = 1 + 4 + 4 + 4
+	DataSize   = 16*1024 - 13
+	MaxSize    = HeaderSize + DataSize
 )
 
 type Block struct {
@@ -29,17 +29,17 @@ func (block *Block) Pack() []byte {
 	if block.packed != nil {
 		return block.packed
 	}
-	block.packed = make([]byte, BLOCK_HEADER_SIZE+len(block.BlockData))
+	block.packed = make([]byte, HeaderSize+len(block.BlockData))
 	block.packed[0] = block.Type
 	binary.LittleEndian.PutUint32(block.packed[1:], block.ConnectionID)
 	binary.LittleEndian.PutUint32(block.packed[5:], block.BlockID)
 	binary.LittleEndian.PutUint32(block.packed[9:], block.BlockLength)
-	copy(block.packed[BLOCK_HEADER_SIZE:], block.BlockData)
+	copy(block.packed[HeaderSize:], block.BlockData)
 	return block.packed
 }
 
 func NewBlockFromReader(reader io.Reader) (*Block, error) {
-	headerBuf := make([]byte, BLOCK_HEADER_SIZE)
+	headerBuf := make([]byte, HeaderSize)
 	block := Block{}
 	_, err := io.ReadFull(reader, headerBuf)
 	if err != nil {
@@ -62,7 +62,7 @@ func NewBlockFromReader(reader io.Reader) (*Block, error) {
 func NewConnectBlock(connectID uint32, blockID uint32, address string) Block {
 	data := []byte(address)
 	return Block{
-		Type:         BLOCK_TYPE_CONNECT,
+		Type:         TypeConnect,
 		ConnectionID: connectID,
 		BlockID:      blockID,
 		BlockLength:  uint32(len(data)),
@@ -73,7 +73,7 @@ func NewConnectBlock(connectID uint32, blockID uint32, address string) Block {
 func newDataBlock(connectID uint32, blockID uint32, data []byte) Block {
 	// We should copy data now
 	blk := Block{
-		Type:         BLOCK_TYPE_DATA,
+		Type:         TypeData,
 		ConnectionID: connectID,
 		BlockID:      blockID,
 		BlockLength:  uint32(len(data)),
@@ -86,7 +86,7 @@ func newDataBlock(connectID uint32, blockID uint32, data []byte) Block {
 func NewDataBlocks(connectID uint32, blockID *atomic.Uint32, data []byte) []Block {
 	blocks := make([]Block, 0)
 	for cursor := 0; cursor < len(data); {
-		end := cursor + BLOCK_DATA_SIZE
+		end := cursor + DataSize
 		if len(data) < end {
 			end = len(data)
 		}
@@ -98,7 +98,7 @@ func NewDataBlocks(connectID uint32, blockID *atomic.Uint32, data []byte) []Bloc
 
 func NewDisconnectBlock(connectID uint32, blockID uint32) Block {
 	return Block{
-		Type:         BLOCK_TYPE_DISCONNECT,
+		Type:         TypeDisconnect,
 		ConnectionID: connectID,
 		BlockID:      blockID,
 		BlockLength:  0,

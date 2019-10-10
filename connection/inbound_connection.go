@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/ihciah/rabbit-tcp/block"
+	"github.com/ihciah/rabbit-tcp/logger"
 	"io"
-	"log"
 	"math/rand"
 	"net"
-	"os"
 	"time"
 )
 
@@ -27,11 +26,11 @@ func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, rem
 			sendQueue:        sendQueue,
 			recvQueue:        make(chan block.Block, RecvQueueSize),
 			orderedRecvQueue: make(chan block.Block, OrderedRecvQueueSize),
-			logger:           log.New(os.Stdout, fmt.Sprintf("[InboundConnection-%d]", connectionID), log.LstdFlags),
+			logger:           logger.NewLogger(fmt.Sprintf("[InboundConnection-%d]", connectionID)),
 		},
-		dataBuffer: NewLoopBuffer(BlockMaxSize),
+		dataBuffer: NewLoopBuffer(block.MaxSize),
 	}
-	c.logger.Printf("InboundConnection %d created.\n", connectionID)
+	c.logger.Infof("InboundConnection %d created.\n", connectionID)
 	return &c
 }
 
@@ -53,10 +52,10 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 		}
 		blk := <-c.orderedRecvQueue
 		switch blk.Type {
-		case block.BLOCK_TYPE_DISCONNECT:
+		case block.TypeDisconnect:
 			c.ok = false
 			return 0, io.EOF
-		case block.BLOCK_TYPE_DATA:
+		case block.TypeData:
 			dst := b[readN:]
 			if len(dst) < len(blk.BlockData) {
 				// if dst can't put a block, put part of it and return
@@ -74,10 +73,10 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 		select {
 		case blk := <-c.orderedRecvQueue:
 			switch blk.Type {
-			case block.BLOCK_TYPE_DISCONNECT:
+			case block.TypeDisconnect:
 				c.ok = false
 				return readN, nil
-			case block.BLOCK_TYPE_DATA:
+			case block.TypeData:
 				dst := b[readN:]
 				if len(dst) < len(blk.BlockData) {
 					// if dst can't put a block, put part of it and return

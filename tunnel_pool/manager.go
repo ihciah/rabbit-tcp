@@ -2,10 +2,9 @@ package tunnel_pool
 
 import (
 	"context"
+	"github.com/ihciah/rabbit-tcp/logger"
 	"github.com/ihciah/rabbit-tcp/tunnel"
-	"log"
 	"net"
-	"os"
 	"sync"
 	"time"
 )
@@ -26,7 +25,7 @@ type ClientManager struct {
 	endpoint   string
 	peerID     uint32
 	cipher     tunnel.Cipher
-	logger     *log.Logger
+	logger     *logger.Logger
 }
 
 func NewClientManager(tunnelNum int, endpoint string, peerID uint32, cipher tunnel.Cipher) ClientManager {
@@ -35,7 +34,7 @@ func NewClientManager(tunnelNum int, endpoint string, peerID uint32, cipher tunn
 		endpoint:  endpoint,
 		cipher:    cipher,
 		peerID:    peerID,
-		logger:    log.New(os.Stdout, "[ClientManager]", log.LstdFlags),
+		logger:    logger.NewLogger("[ClientManager]"),
 	}
 }
 
@@ -46,22 +45,22 @@ func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
 	tunnelCount := len(pool.tunnelMapping)
 
 	for tunnelToCreate := cm.tunnelNum - tunnelCount; tunnelToCreate > 0; {
-		cm.logger.Printf("Need %d new tunnels now.\n", tunnelToCreate)
+		cm.logger.Infof("Need %d new tunnels now.\n", tunnelToCreate)
 		conn, err := net.Dial("tcp", cm.endpoint)
 		if err != nil {
-			cm.logger.Printf("Error when dial to %s: %v.\n", cm.endpoint, err)
+			cm.logger.Errorf("Error when dial to %s: %v.\n", cm.endpoint, err)
 			time.Sleep(ErrorWaitSec * time.Second)
 			continue
 		}
 		tun, err := NewActiveTunnel(conn, cm.cipher, cm.peerID)
 		if err != nil {
-			cm.logger.Printf("Error when create active tunnel: %v\n", err)
+			cm.logger.Errorf("Error when create active tunnel: %v\n", err)
 			time.Sleep(ErrorWaitSec * time.Second)
 			continue
 		}
 		pool.AddTunnel(&tun)
 		tunnelToCreate--
-		cm.logger.Printf("Successfully dialed to %s. TunnelToCreate: %d\n", cm.endpoint, tunnelToCreate)
+		cm.logger.Infof("Successfully dialed to %s. TunnelToCreate: %d\n", cm.endpoint, tunnelToCreate)
 	}
 }
 
@@ -72,12 +71,12 @@ type ServerManager struct {
 	removePeerFunc      context.CancelFunc
 	cancelCountDownFunc context.CancelFunc
 	triggered           bool
-	logger              *log.Logger
+	logger              *logger.Logger
 }
 
 func NewServerManager(removePeerFunc context.CancelFunc) ServerManager {
 	return ServerManager{
-		logger:         log.New(os.Stdout, "[ServerManager]", log.LstdFlags),
+		logger:         logger.NewLogger("[ServerManager]"),
 		removePeerFunc: removePeerFunc,
 	}
 }
@@ -95,10 +94,10 @@ func (sm *ServerManager) Notify(pool *TunnelPool) {
 			select {
 			case <-destroyAfterCtx.Done():
 				sm.triggered = false
-				sm.logger.Println("ServerManager notify canceled.")
+				sm.logger.Debugln("ServerManager notify canceled.")
 				return
 			case <-time.After(EmptyPoolDestroySec * time.Second):
-				sm.logger.Println("ServerManager will be destroyed.")
+				sm.logger.Infoln("ServerManager will be destroyed.")
 				sm.removePeerFunc()
 				return
 			}
