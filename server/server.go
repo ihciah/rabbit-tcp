@@ -9,7 +9,6 @@ import (
 )
 
 type Server struct {
-	//config
 	peerGroup peer.PeerGroup
 	logger    *log.Logger
 }
