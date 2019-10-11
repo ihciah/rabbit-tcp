@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ihciah/rabbit-tcp/block"
 	"github.com/ihciah/rabbit-tcp/logger"
+	"go.uber.org/atomic"
 	"io"
 	"math/rand"
 	"net"
@@ -22,7 +23,7 @@ func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, rem
 		baseConnection: baseConnection{
 			blockProcessor:   newBlockProcessor(ctx, removeFromPool),
 			connectionID:     connectionID,
-			ok:               true,
+			closed:           atomic.NewBool(false),
 			sendQueue:        sendQueue,
 			recvQueue:        make(chan block.Block, RecvQueueSize),
 			orderedRecvQueue: make(chan block.Block, OrderedRecvQueueSize),
@@ -47,13 +48,13 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 
 	if readN == 0 {
 		// if no data in b, we must wait until a block comes and read something
-		if !c.ok {
+		if c.closed.Load() {
 			return 0, io.EOF
 		}
 		blk := <-c.orderedRecvQueue
 		switch blk.Type {
 		case block.TypeDisconnect:
-			c.ok = false
+			c.closed.Store(true)
 			return 0, io.EOF
 		case block.TypeData:
 			dst := b[readN:]
@@ -74,7 +75,7 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 		case blk := <-c.orderedRecvQueue:
 			switch blk.Type {
 			case block.TypeDisconnect:
-				c.ok = false
+				c.closed.Store(true)
 				return readN, nil
 			case block.TypeData:
 				dst := b[readN:]

@@ -7,11 +7,6 @@ import (
 	"sync"
 )
 
-const (
-	SendQueueSize = 24
-	RecvQueueSize = 24
-)
-
 type TunnelPool struct {
 	mutex          sync.Mutex
 	tunnelMapping  map[uint32]*Tunnel

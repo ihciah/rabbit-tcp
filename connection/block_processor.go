@@ -8,10 +8,6 @@ import (
 	"time"
 )
 
-const (
-	PacketWaitTimeoutSec = 7
-)
-
 // 1. Join blocks from chan to connection orderedRecvQueue
 // 2. Send bytes or control block
 type blockProcessor struct {

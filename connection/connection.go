@@ -3,12 +3,8 @@ package connection
 import (
 	"github.com/ihciah/rabbit-tcp/block"
 	"github.com/ihciah/rabbit-tcp/logger"
+	"go.uber.org/atomic"
 	"net"
-)
-
-const (
-	OrderedRecvQueueSize = 24
-	RecvQueueSize        = 24
 )
 
 type Connection interface {
@@ -29,7 +25,7 @@ type Connection interface {
 type baseConnection struct {
 	blockProcessor   blockProcessor
 	connectionID     uint32
-	ok               bool
+	closed           *atomic.Bool
 	sendQueue        chan<- block.Block // Same as connectionPool
 	recvQueue        chan block.Block
 	orderedRecvQueue chan block.Block

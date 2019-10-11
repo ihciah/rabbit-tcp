@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	SendQueueSize = 48
+	SendQueueSize = 48 // SendQueue channel cap
 )
 
 type ConnectionPool struct {

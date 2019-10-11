@@ -9,11 +9,6 @@ import (
 	"time"
 )
 
-const (
-	ErrorWaitSec        = 3
-	EmptyPoolDestroySec = 60
-)
-
 type Manager interface {
 	Notify(pool *TunnelPool)         // When TunnelPool size changed, Notify should be called
 	DecreaseNotify(pool *TunnelPool) // When TunnelPool size decreased, DecreaseNotify should be called
