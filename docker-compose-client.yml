@@ -5,7 +5,7 @@ rabbit-client:
   environment:
     - MODE=c
     - PASSWORD=dogdog
-    - RABBITADDR=your.server:9891
+    - RABBITADDR=your.rabbit.server:9891
     - LISTEN=:9892
     - DEST=your.service:port
     - TUNNELN=6
