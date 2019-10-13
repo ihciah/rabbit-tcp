@@ -1,0 +1,122 @@
+name: Upload Release
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Upload Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@master
+
+      - name: Set up Go 1.13
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v1
+
+      - name: Get dependencies
+        run: |
+          mkdir -p ~/go/src/github.com/ihciah
+          ln -s "$(pwd)/../rabbit-tcp" ~/go/src/github.com/ihciah/rabbit-tcp
+          go get -v -t -d ./...
+
+      - name: Build
+        run: make releases
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release windows-amd64
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: bin/rabbit-windows-amd64.zip
+          asset_name: rabbit-windows-amd64.zip
+          asset_content_type: application/zip
+
+      - name: Upload Release windows-386
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: bin/rabbit-windows-386.zip
+          asset_name: rabbit-windows-386.zip
+          asset_content_type: application/zip
+
+      - name: Upload Release linux-amd64
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: bin/rabbit-linux-amd64.gz
+          asset_name: rabbit-linux-amd64.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Release linux-386
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: bin/rabbit-linux-386.gz
+          asset_name: rabbit-linux-386.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Release linux-arm64
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: bin/rabbit-linux-arm64.gz
+          asset_name: rabbit-linux-arm64.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Release linux-arm
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: bin/rabbit-linux-arm.gz
+          asset_name: rabbit-linux-arm.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Release darwin-amd64
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: bin/rabbit-darwin-amd64.gz
+          asset_name: rabbit-darwin-amd64.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Release darwin-386
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: bin/rabbit-darwin-386.gz
+          asset_name: rabbit-darwin-386.gz
+          asset_content_type: application/gzip

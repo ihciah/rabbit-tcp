@@ -1,7 +1,10 @@
 name: Publish Docker
-on: [push]
-jobs:
+on:
+  push:
+    tags:
+      - 'v*'
 
+jobs:
   build:
     name: Publish Docker
     runs-on: ubuntu-latest
