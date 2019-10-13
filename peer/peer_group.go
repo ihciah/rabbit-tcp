@@ -56,6 +56,7 @@ func (pg *PeerGroup) AddTunnel(tunnel *tunnel_pool.Tunnel) error {
 func (pg *PeerGroup) AddTunnelFromConn(conn net.Conn) error {
 	tun, err := tunnel_pool.NewPassiveTunnel(conn, pg.cipher)
 	if err != nil {
+		conn.Close()
 		return err
 	}
 	return pg.AddTunnel(&tun)

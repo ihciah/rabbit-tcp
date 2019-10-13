@@ -1,4 +1,4 @@
-FROM golang:1.12.7-alpine3.10 AS builder
+FROM golang:1-alpine AS builder
 
 RUN mkdir -p /go/src/github.com/ihciah/rabbit-tcp
 COPY . /go/src/github.com/ihciah/rabbit-tcp
@@ -7,7 +7,7 @@ RUN apk upgrade \
     && apk add git \
     && go get github.com/ihciah/rabbit-tcp/cmd
 
-FROM alpine:3.10 AS dist
+FROM alpine:latest AS dist
 LABEL maintainer="ihciah <ihciah@gmail.com>"
 
 ENV MODE s
@@ -17,10 +17,6 @@ ENV LISTEN :9891
 ENV DEST=
 ENV TUNNELN 6
 ENV VERBOSE 2
-
-RUN apk upgrade \
-    && apk add tzdata \
-    && rm -rf /var/cache/apk/*
 
 COPY --from=builder /go/bin/cmd /usr/bin/rabbit
 

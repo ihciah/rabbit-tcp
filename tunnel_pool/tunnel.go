@@ -107,7 +107,7 @@ func (tunnel *Tunnel) packThenSend(blk block.Block, retryQueue chan block.Block)
 	if err != nil || n != int64(len(dataToSend)) {
 		tunnel.logger.Warnf("Error when send bytes to tunnel: (n: %d, error: %v).\n", n, err)
 		// Tunnel down and message has not been fully sent.
-		tunnel.cancel()
+		tunnel.closeThenCancel()
 		go func() {
 			retryQueue <- blk
 		}()
@@ -123,6 +123,17 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 	for {
 		select {
 		case <-tunnel.ctx.Done():
+			// Should read all before leave, or packet will be lost
+			for {
+				blk, err := block.NewBlockFromReader(tunnel.Conn)
+				if err != nil {
+					tunnel.logger.Debugf("Block received from tunnel(type: %d) successfully after close.\n", blk.Type)
+					output <- *blk
+				} else {
+					tunnel.logger.Debugf("Error when receiving block from tunnel after close: %v.\n", err)
+					break
+				}
+			}
 			return
 		default:
 			blk, err := block.NewBlockFromReader(tunnel.Conn)
@@ -130,7 +141,7 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 				// Server will never close connection in normal cases
 				tunnel.logger.Errorf("Error when receiving block from tunnel: %v.\n", err)
 				// Tunnel down and message has not been fully read.
-				tunnel.cancel()
+				tunnel.closeThenCancel()
 			} else {
 				tunnel.logger.Debugf("Block received from tunnel(type: %d)successfully.\n", blk.Type)
 				output <- *blk
@@ -141,4 +152,9 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 
 func (tunnel *Tunnel) GetPeerID() uint32 {
 	return tunnel.peerID
+}
+
+func (tunnel *Tunnel) closeThenCancel() {
+	tunnel.Close()
+	tunnel.cancel()
 }

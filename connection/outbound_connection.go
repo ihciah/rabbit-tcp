@@ -36,7 +36,7 @@ func NewOutboundConnection(connectionID uint32, sendQueue chan<- block.Block, ct
 	return &c
 }
 
-func (oc *OutboundConnection) closeWithOnceSend() {
+func (oc *OutboundConnection) closeThenCancelWithOnceSend() {
 	oc.Conn.Close()
 	oc.cancel()
 	if oc.closed.CAS(false, true) {
@@ -44,7 +44,7 @@ func (oc *OutboundConnection) closeWithOnceSend() {
 	}
 }
 
-func (oc *OutboundConnection) close() {
+func (oc *OutboundConnection) closeThenCancel() {
 	oc.Conn.Close()
 	oc.cancel()
 }
@@ -60,18 +60,28 @@ func (oc *OutboundConnection) RecvRelay() {
 			oc.Conn.SetReadDeadline(time.Time{})
 		} else if err == io.EOF {
 			oc.logger.Debugln("EOF received from outbound connection.")
-			oc.closeWithOnceSend()
+			oc.closeThenCancelWithOnceSend()
 			return
 		} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			oc.logger.Debugln("Receive timeout from outbound connection.")
 		} else {
 			oc.logger.Errorf("Error when recv relay outbound connection: %v\n.", err)
-			oc.closeWithOnceSend()
+			oc.closeThenCancelWithOnceSend()
 			return
 		}
 		select {
 		case <-oc.ctx.Done():
-			oc.closeWithOnceSend()
+			// Should read all before leave, or packet will be lost
+			for {
+				n, err := oc.Conn.Read(recvBuffer)
+				if err == nil {
+					oc.logger.Debugln("Data received from outbound connection successfully after close.")
+					oc.sendData(recvBuffer[:n])
+				} else {
+					oc.logger.Debugf("Error when receiving data from outbound connection after close: %v.\n", err)
+					break
+				}
+			}
 			return
 		default:
 			continue
@@ -96,14 +106,14 @@ func (oc *OutboundConnection) SendRelay() {
 					oc.Conn.SetWriteDeadline(time.Time{})
 				} else {
 					oc.logger.Errorf("Error when send relay outbound connection: %v\n.", err)
-					oc.closeWithOnceSend()
+					oc.closeThenCancelWithOnceSend()
 				}
 			case block.TypeDisconnect:
 				oc.logger.Debugln("Send out DISCONNECT action.")
-				oc.close()
+				oc.closeThenCancel()
 			}
 		case <-oc.ctx.Done():
-			oc.closeWithOnceSend()
+			oc.closeThenCancelWithOnceSend()
 			return
 		}
 	}
