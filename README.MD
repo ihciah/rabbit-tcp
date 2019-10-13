@@ -1,6 +1,6 @@
 # Rabbit TCP
 
-![BuildBadge](https://github.com/ihciah/rabbit-tcp/workflows/Build/badge.svg)
+![Build badge](https://github.com/ihciah/rabbit-tcp/workflows/Build/badge.svg) ![Docker pull badge](https://img.shields.io/docker/pulls/ihciah/rabbit)
 
 A multi-connection TCP forwarder
 
