@@ -28,7 +28,12 @@ jobs:
           go get -v -t -d ./...
 
       - name: Build
-        run: make releases
+        run: |
+          TAG=${{ github.ref }}
+          TAG=${TAG#"refs/tags/"}
+          TAG=${TAG#"v"}
+          TAG=${TAG#"V"}
+          make releases RABBITVERSION=$TAG
 
       - name: Create Release
         id: create_release

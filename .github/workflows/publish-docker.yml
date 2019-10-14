@@ -14,8 +14,9 @@ jobs:
         uses: actions/checkout@v1
 
       - name: Publish to Registry
-        uses: elgohr/Publish-Docker-Github-Action@cade1bc
+        uses: ihciah/Publish-Docker-Github-Action@master
         with:
           name: ihciah/rabbit
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+          spectag: ${{ github.ref }}

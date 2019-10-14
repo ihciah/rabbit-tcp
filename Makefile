@@ -1,8 +1,14 @@
 NAME=rabbit
 BINDIR=bin
-GOBUILD=CGO_ENABLED=0 go build -ldflags '-w -s'
+VERSIONPARAM=
+ifdef RABBITVERSION
+	VERSIONPARAM=-X 'main.Version=$(RABBITVERSION)'
+endif
+GOBUILD=CGO_ENABLED=0 go build -ldflags "-w -s $(VERSIONPARAM)"
 BUILDFILE=cmd/rabbit.go
-# The -w and -s flags reduce binary sizes by excluding unnecessary symbols and debug info
+
+current:
+	$(GOBUILD) -o $(BINDIR)/$(NAME) $(BUILDFILE)
 
 all: linux-amd64 linux-386 linux-arm64 linux-arm darwin-amd64 darwin-386 windows-amd64 windows-386
 
