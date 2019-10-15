@@ -1,12 +1,12 @@
 rabbit-client:
   image: ihciah/rabbit
   ports:
-    - "9892:9892/tcp"
+    - "9892:443/tcp"
   environment:
     - MODE=c
-    - PASSWORD=dogdog
+    - PASSWORD=password
     - RABBITADDR=your.rabbit.server:9891
-    - LISTEN=:9892
+    - LISTEN=:443
     - DEST=your.service:port
     - TUNNELN=6
     - VERBOSE=2

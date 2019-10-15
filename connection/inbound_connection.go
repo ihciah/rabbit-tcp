@@ -14,7 +14,7 @@ import (
 
 type InboundConnection struct {
 	baseConnection
-	dataBuffer LoopByteBuffer
+	dataBuffer ByteRingBuffer
 }
 
 func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, removeFromPool context.CancelFunc) Connection {
@@ -29,7 +29,7 @@ func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, rem
 			orderedRecvQueue: make(chan block.Block, OrderedRecvQueueSize),
 			logger:           logger.NewLogger(fmt.Sprintf("[InboundConnection-%d]", connectionID)),
 		},
-		dataBuffer: NewLoopBuffer(block.MaxSize),
+		dataBuffer: NewByteRingBuffer(block.MaxSize),
 	}
 	c.logger.Infof("InboundConnection %d created.\n", connectionID)
 	return &c
@@ -96,13 +96,12 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 
 func (c *InboundConnection) Write(b []byte) (n int, err error) {
 	// TODO: tag all blocks from b using WaitGroup
-	// TODO: and wait all blocks sent
+	// TODO: and wait all blocks sent?
 	c.sendData(b)
 	return len(b), nil
 }
 
 func (c *InboundConnection) Close() error {
-	// TODO
 	c.SendDisconnect()
 	return nil
 }

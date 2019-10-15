@@ -1,10 +1,10 @@
 rabbit-server:
   image: ihciah/rabbit
   ports:
-    - "9891:9891/tcp"
+    - "9891:443/tcp"
   environment:
     - MODE=s
-    - PASSWORD=dogdog
-    - RABBITADDR=:9891
+    - PASSWORD=password
+    - RABBITADDR=:443
     - VERBOSE=2
   restart: always
