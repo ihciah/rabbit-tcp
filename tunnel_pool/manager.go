@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/ihciah/rabbit-tcp/logger"
 	"github.com/ihciah/rabbit-tcp/tunnel"
+	"go.uber.org/atomic"
 	"net"
 	"sync"
 	"time"
@@ -15,12 +16,12 @@ type Manager interface {
 }
 
 type ClientManager struct {
-	notifyLock sync.Mutex // Only one notify can run in the same time
-	tunnelNum  int
-	endpoint   string
-	peerID     uint32
-	cipher     tunnel.Cipher
-	logger     *logger.Logger
+	decreaseNotifyLock sync.Mutex // Only one decrease notify can run at the same time
+	tunnelNum          int
+	endpoint           string
+	peerID             uint32
+	cipher             tunnel.Cipher
+	logger             *logger.Logger
 }
 
 func NewClientManager(tunnelNum int, endpoint string, peerID uint32, cipher tunnel.Cipher) ClientManager {
@@ -35,11 +36,18 @@ func NewClientManager(tunnelNum int, endpoint string, peerID uint32, cipher tunn
 
 // Keep tunnelPool size above tunnelNum
 func (cm *ClientManager) DecreaseNotify(pool *TunnelPool) {
-	cm.notifyLock.Lock()
-	defer cm.notifyLock.Unlock()
+	cm.decreaseNotifyLock.Lock()
+	defer cm.decreaseNotifyLock.Unlock()
 	tunnelCount := len(pool.tunnelMapping)
 
 	for tunnelToCreate := cm.tunnelNum - tunnelCount; tunnelToCreate > 0; {
+		select {
+		case <-pool.ctx.Done():
+			// Have to return if pool cancel is called.
+			return
+		default:
+		}
+
 		cm.logger.Infof("Need %d new tunnels now.\n", tunnelToCreate)
 		conn, err := net.Dial("tcp", cm.endpoint)
 		if err != nil {
@@ -65,7 +73,7 @@ type ServerManager struct {
 	notifyLock          sync.Mutex // Only one notify can run in the same time
 	removePeerFunc      context.CancelFunc
 	cancelCountDownFunc context.CancelFunc
-	triggered           bool
+	triggered           atomic.Bool
 	logger              *logger.Logger
 }
 
@@ -78,28 +86,23 @@ func NewServerManager(removePeerFunc context.CancelFunc) ServerManager {
 
 // If tunnelPool size is zero for more than EmptyPoolDestroySec, delete it
 func (sm *ServerManager) Notify(pool *TunnelPool) {
-	sm.notifyLock.Lock()
-	defer sm.notifyLock.Unlock()
 	tunnelCount := len(pool.tunnelMapping)
 
-	if tunnelCount == 0 && !sm.triggered {
+	if tunnelCount == 0 && sm.triggered.CAS(false, true) {
 		var destroyAfterCtx context.Context
 		destroyAfterCtx, sm.cancelCountDownFunc = context.WithCancel(context.Background())
 		go func(*ServerManager) {
 			select {
 			case <-destroyAfterCtx.Done():
-				sm.triggered = false
 				sm.logger.Debugln("ServerManager notify canceled.")
-				return
 			case <-time.After(EmptyPoolDestroySec * time.Second):
 				sm.logger.Infoln("ServerManager will be destroyed.")
 				sm.removePeerFunc()
-				return
 			}
 		}(sm)
 	}
 
-	if tunnelCount != 0 && sm.triggered {
+	if tunnelCount != 0 && sm.triggered.CAS(true, false) {
 		sm.cancelCountDownFunc()
 	}
 }

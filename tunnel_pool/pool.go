@@ -45,7 +45,7 @@ func (tp *TunnelPool) AddTunnel(tunnel *Tunnel) {
 	defer tp.mutex.Unlock()
 
 	tp.tunnelMapping[tunnel.tunnelID] = tunnel
-	go tp.manager.Notify(tp)
+	tp.manager.Notify(tp)
 
 	tunnel.ctx, tunnel.cancel = context.WithCancel(tp.ctx)
 	go func() {
@@ -65,7 +65,7 @@ func (tp *TunnelPool) RemoveTunnel(tunnel *Tunnel) {
 	if tunnel, ok := tp.tunnelMapping[tunnel.tunnelID]; ok {
 		delete(tp.tunnelMapping, tunnel.tunnelID)
 		tp.manager.Notify(tp)
-		tp.manager.DecreaseNotify(tp)
+		go tp.manager.DecreaseNotify(tp)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"github.com/ihciah/rabbit-tcp/block"
 	"github.com/ihciah/rabbit-tcp/logger"
@@ -11,6 +12,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"time"
 )
 
 type Tunnel struct {
@@ -25,12 +27,12 @@ type Tunnel struct {
 // Create a new tunnel from a net.Conn and cipher with random tunnelID
 func NewActiveTunnel(conn net.Conn, ciph tunnel.Cipher, peerID uint32) (Tunnel, error) {
 	tun := newTunnelWithID(conn, ciph, peerID)
-	return tun, tun.sendPeerID()
+	return tun, tun.activeExchangePeerID()
 }
 
 func NewPassiveTunnel(conn net.Conn, ciph tunnel.Cipher) (Tunnel, error) {
 	tun := newTunnelWithID(conn, ciph, 0)
-	return tun, tun.recvPeerID()
+	return tun, tun.passiveExchangePeerID()
 }
 
 // Create a new tunnel from a net.Conn and cipher with given tunnelID
@@ -46,28 +48,63 @@ func newTunnelWithID(conn net.Conn, ciph tunnel.Cipher, peerID uint32) Tunnel {
 	return tun
 }
 
-func (tunnel *Tunnel) sendPeerID() error {
+func (tunnel *Tunnel) activeExchangePeerID() (err error) {
+	err = tunnel.sendPeerID(tunnel.peerID)
+	if err != nil {
+		tunnel.logger.Errorf("Cannot exchange peerID(send failed: %v).\n", err)
+		return err
+	}
+	peerID, err := tunnel.recvPeerID()
+	if err != nil {
+		tunnel.logger.Errorf("Cannot exchange peerID(recv failed: %v).\n", err)
+		return err
+	}
+	if tunnel.peerID != peerID {
+		tunnel.logger.Errorf("Cannot exchange peerID(local: %d, remote: %d).\n", tunnel.peerID, peerID)
+		return errors.New("invalid exchanging")
+	}
+	tunnel.logger.Infoln("PeerID exchange successfully.")
+	return
+}
+
+func (tunnel *Tunnel) passiveExchangePeerID() (err error) {
+	peerID, err := tunnel.recvPeerID()
+	if err != nil {
+		tunnel.logger.Errorf("Cannot exchange peerID(recv failed: %v).\n", err)
+		return err
+	}
+	err = tunnel.sendPeerID(peerID)
+	if err != nil {
+		tunnel.logger.Errorf("Cannot exchange peerID(send failed: %v).\n", err)
+		return err
+	}
+	tunnel.peerID = peerID
+	tunnel.logger.Infoln("PeerID exchange successfully.")
+	return
+}
+
+func (tunnel *Tunnel) sendPeerID(peerID uint32) error {
 	peerIDBuffer := make([]byte, 4)
-	binary.LittleEndian.PutUint32(peerIDBuffer, tunnel.peerID)
+	binary.LittleEndian.PutUint32(peerIDBuffer, peerID)
 	_, err := io.CopyN(tunnel.Conn, bytes.NewReader(peerIDBuffer), 4)
 	if err != nil {
 		tunnel.logger.Errorf("Peer id sent with error:%v.\n", err)
 		return err
 	}
-	tunnel.logger.Debugln("Peer id sent.")
+	tunnel.logger.Infoln("Peer id sent.")
 	return nil
 }
 
-func (tunnel *Tunnel) recvPeerID() error {
+func (tunnel *Tunnel) recvPeerID() (uint32, error) {
 	peerIDBuffer := make([]byte, 4)
 	_, err := io.ReadFull(tunnel.Conn, peerIDBuffer)
 	if err != nil {
 		tunnel.logger.Errorf("Peer id recv with error:%v.\n", err)
-		return err
+		return 0, err
 	}
-	tunnel.peerID = binary.LittleEndian.Uint32(peerIDBuffer)
-	tunnel.logger.Debugln("Peer id recv.")
-	return nil
+	peerID := binary.LittleEndian.Uint32(peerIDBuffer)
+	tunnel.logger.Infoln("Peer id recv.")
+	return peerID, nil
 }
 
 // Read block from send channel, pack it and send
@@ -103,6 +140,8 @@ func (tunnel *Tunnel) OutboundRelay(normalQueue, retryQueue chan block.Block) {
 func (tunnel *Tunnel) packThenSend(blk block.Block, retryQueue chan block.Block) {
 	dataToSend := blk.Pack()
 	reader := bytes.NewReader(dataToSend)
+
+	tunnel.Conn.SetWriteDeadline(time.Now().Add(TunnelBlockTimeoutSec * time.Second))
 	n, err := io.Copy(tunnel.Conn, reader)
 	if err != nil || n != int64(len(dataToSend)) {
 		tunnel.logger.Warnf("Error when send bytes to tunnel: (n: %d, error: %v).\n", n, err)
@@ -113,6 +152,7 @@ func (tunnel *Tunnel) packThenSend(blk block.Block, retryQueue chan block.Block)
 		}()
 		// Use new goroutine to avoid channel blocked
 	} else {
+		tunnel.Conn.SetWriteDeadline(time.Time{})
 		tunnel.logger.Debugf("Copied data to tunnel successfully(n: %d).\n", n)
 	}
 }
@@ -125,8 +165,9 @@ func (tunnel *Tunnel) InboundRelay(output chan<- block.Block) {
 		case <-tunnel.ctx.Done():
 			// Should read all before leave, or packet will be lost
 			for {
+				// Will never be blocked because the tunnel is closed
 				blk, err := block.NewBlockFromReader(tunnel.Conn)
-				if err != nil {
+				if err == nil {
 					tunnel.logger.Debugf("Block received from tunnel(type: %d) successfully after close.\n", blk.Type)
 					output <- *blk
 				} else {
