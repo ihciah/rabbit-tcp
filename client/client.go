@@ -39,24 +39,27 @@ func (c *Client) ServeForward(listen, dest string) error {
 		}
 		c.logger.Infoln("Accepted a connection.")
 		connProxy := c.Dial(dest)
-		go biRelay(conn, connProxy)
+		go biRelay(conn, connProxy, c.logger)
 	}
 }
 
-func biRelay(left, right net.Conn) {
+func biRelay(left, right net.Conn, logger *logger.Logger) {
 	ctx, cancel := context.WithCancel(context.Background())
-	go relay(left, right, cancel)
-	go relay(right, left, cancel)
+	go relay(left, right, cancel, logger)
+	go relay(right, left, cancel, logger)
 	<-ctx.Done()
-	left.Close()
-	right.Close()
+	_ = left.Close()
+	_ = right.Close()
 }
 
-func relay(dst, src net.Conn, cancel context.CancelFunc) {
+func relay(dst, src net.Conn, cancel context.CancelFunc, logger *logger.Logger) {
 	_, err := io.Copy(dst, src)
 	if err != nil {
-		dst.SetDeadline(time.Now())
-		src.SetDeadline(time.Now())
+		_ = dst.SetDeadline(time.Now())
+		_ = src.SetDeadline(time.Now())
 		cancel()
+		if err != io.EOF {
+			logger.Errorf("Error when relay client: %v.\n", err)
+		}
 	}
 }
