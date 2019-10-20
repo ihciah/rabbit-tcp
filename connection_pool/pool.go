@@ -90,9 +90,13 @@ func (cp *ConnectionPool) recvRelay() {
 			connID := blk.ConnectionID
 			var conn connection.Connection
 			var ok bool
+			cp.mappingLock.Lock()
 			if conn, ok = cp.connectionMapping[connID]; !ok {
+				cp.mappingLock.Unlock()
 				conn = cp.NewPooledOutboundConnection(blk.ConnectionID)
 				cp.logger.Infoln("Connection created and added to connectionPool.")
+			} else {
+				cp.mappingLock.Unlock()
 			}
 			conn.RecvBlock(blk)
 			cp.logger.Debugf("Block %d(type: %d) put to connRecvQueue.\n", blk.BlockID, blk.Type)
