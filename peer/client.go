@@ -26,13 +26,13 @@ func newClientPeerWithID(peerID uint32, tunnelNum int, endpoint string, cipher t
 
 	poolManager := tunnel_pool.NewClientManager(tunnelNum, endpoint, peerID, cipher)
 	tunnelPool := tunnel_pool.NewTunnelPool(peerID, &poolManager, peerCtx)
-	connectionPool := connection_pool.NewConnectionPool(&tunnelPool, peerCtx)
+	connectionPool := connection_pool.NewConnectionPool(tunnelPool, false, peerCtx)
 
 	return ClientPeer{
 		Peer: Peer{
 			peerID:         peerID,
-			connectionPool: connectionPool,
-			tunnelPool:     tunnelPool,
+			connectionPool: *connectionPool,
+			tunnelPool:     *tunnelPool,
 			ctx:            peerCtx,
 			cancel:         removePeerFunc,
 		},

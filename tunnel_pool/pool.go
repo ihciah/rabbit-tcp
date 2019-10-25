@@ -20,9 +20,9 @@ type TunnelPool struct {
 	logger         *logger.Logger
 }
 
-func NewTunnelPool(peerID uint32, manager Manager, peerContext context.Context) TunnelPool {
+func NewTunnelPool(peerID uint32, manager Manager, peerContext context.Context) *TunnelPool {
 	ctx, cancel := context.WithCancel(peerContext)
-	tp := TunnelPool{
+	tp := &TunnelPool{
 		tunnelMapping:  make(map[uint32]*Tunnel),
 		peerID:         peerID,
 		manager:        manager,
@@ -34,7 +34,7 @@ func NewTunnelPool(peerID uint32, manager Manager, peerContext context.Context) 
 		logger:         logger.NewLogger("[TunnelPool]"),
 	}
 	tp.logger.Infof("Tunnel Pool of peer %d created.\n", peerID)
-	go manager.DecreaseNotify(&tp)
+	go manager.DecreaseNotify(tp)
 	return tp
 }
 

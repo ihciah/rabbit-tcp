@@ -14,25 +14,27 @@ const (
 )
 
 type ConnectionPool struct {
-	connectionMapping map[uint32]connection.Connection
-	mappingLock       sync.Mutex
-	tunnelPool        *tunnel_pool.TunnelPool
-	sendQueue         chan block.Block
-	logger            *logger.Logger
+	connectionMapping   map[uint32]connection.Connection
+	mappingLock         sync.RWMutex
+	tunnelPool          *tunnel_pool.TunnelPool
+	sendQueue           chan block.Block
+	acceptNewConnection bool
+	logger              *logger.Logger
 
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-func NewConnectionPool(pool *tunnel_pool.TunnelPool, backgroundCtx context.Context) ConnectionPool {
+func NewConnectionPool(pool *tunnel_pool.TunnelPool, acceptNewConnection bool, backgroundCtx context.Context) *ConnectionPool {
 	ctx, cancel := context.WithCancel(backgroundCtx)
-	cp := ConnectionPool{
-		connectionMapping: make(map[uint32]connection.Connection),
-		tunnelPool:        pool,
-		sendQueue:         make(chan block.Block, SendQueueSize),
-		logger:            logger.NewLogger("[ConnectionPool]"),
-		ctx:               ctx,
-		cancel:            cancel,
+	cp := &ConnectionPool{
+		connectionMapping:   make(map[uint32]connection.Connection),
+		tunnelPool:          pool,
+		sendQueue:           make(chan block.Block, SendQueueSize),
+		acceptNewConnection: acceptNewConnection,
+		logger:              logger.NewLogger("[ConnectionPool]"),
+		ctx:                 ctx,
+		cancel:              cancel,
 	}
 	cp.logger.Infoln("Connection Pool created.")
 	go cp.sendRelay()
@@ -90,13 +92,17 @@ func (cp *ConnectionPool) recvRelay() {
 			connID := blk.ConnectionID
 			var conn connection.Connection
 			var ok bool
-			cp.mappingLock.Lock()
-			if conn, ok = cp.connectionMapping[connID]; !ok {
-				cp.mappingLock.Unlock()
-				conn = cp.NewPooledOutboundConnection(blk.ConnectionID)
-				cp.logger.Infoln("Connection created and added to connectionPool.")
-			} else {
-				cp.mappingLock.Unlock()
+			cp.mappingLock.RLock()
+			conn, ok = cp.connectionMapping[connID]
+			cp.mappingLock.RUnlock()
+			if !ok {
+				if cp.acceptNewConnection {
+					conn = cp.NewPooledOutboundConnection(blk.ConnectionID)
+					cp.logger.Infoln("Connection created and added to connectionPool.")
+				} else {
+					cp.logger.Errorln("Unknown connection.")
+					continue
+				}
 			}
 			conn.RecvBlock(blk)
 			cp.logger.Debugf("Block %d(type: %d) put to connRecvQueue.\n", blk.BlockID, blk.Type)

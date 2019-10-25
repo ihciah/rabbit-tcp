@@ -14,13 +14,13 @@ func NewServerPeerWithID(peerID uint32, peerContext context.Context, removePeerF
 	poolManager := tunnel_pool.NewServerManager(removePeerFunc)
 	tunnelPool := tunnel_pool.NewTunnelPool(peerID, &poolManager, peerContext)
 
-	connectionPool := connection_pool.NewConnectionPool(&tunnelPool, peerContext)
+	connectionPool := connection_pool.NewConnectionPool(tunnelPool, true, peerContext)
 
 	return ServerPeer{
 		Peer: Peer{
 			peerID:         peerID,
-			connectionPool: connectionPool,
-			tunnelPool:     tunnelPool,
+			connectionPool: *connectionPool,
+			tunnelPool:     *tunnelPool,
 			ctx:            peerContext,
 			cancel:         removePeerFunc,
 		},

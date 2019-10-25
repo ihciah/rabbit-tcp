@@ -37,9 +37,11 @@ func (c *Client) ServeForward(listen, dest string) error {
 			c.logger.Errorf("Error when accept connection: %v.\n", err)
 			continue
 		}
-		c.logger.Infoln("Accepted a connection.")
-		connProxy := c.Dial(dest)
-		go biRelay(conn, connProxy, c.logger)
+		go func() {
+			c.logger.Infoln("Accepted a connection.")
+			connProxy := c.Dial(dest)
+			biRelay(conn, connProxy, c.logger)
+		}()
 	}
 }
 
