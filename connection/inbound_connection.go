@@ -164,6 +164,7 @@ func (c *InboundConnection) Close() error {
 	if c.closed.CAS(false, true) {
 		c.SendDisconnect(block.ShutdownBoth)
 	}
+	c.Stop()
 	return nil
 }
 

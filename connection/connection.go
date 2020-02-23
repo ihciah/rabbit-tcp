@@ -48,6 +48,7 @@ type baseConnection struct {
 }
 
 func (bc *baseConnection) Stop() {
+	bc.logger.Debugf("connection stop\n")
 	bc.blockProcessor.removeFromPool()
 }
 
@@ -78,7 +79,7 @@ func (bc *baseConnection) SendConnect(address string) {
 }
 
 func (bc *baseConnection) SendDisconnect(shutdownType uint8) {
-	bc.logger.Debugln("Send disconnect block.")
+	bc.logger.Debugf("Send disconnect block: %v\n", shutdownType)
 	blk := bc.blockProcessor.packDisconnect(bc.connectionID, shutdownType)
 	bc.sendQueue <- blk
 	if shutdownType == block.ShutdownBoth {
