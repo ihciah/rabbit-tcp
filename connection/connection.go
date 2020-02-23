@@ -1,14 +1,29 @@
 package connection
 
 import (
+	"net"
+
 	"github.com/ihciah/rabbit-tcp/block"
 	"github.com/ihciah/rabbit-tcp/logger"
 	"go.uber.org/atomic"
-	"net"
 )
 
-type Connection interface {
+type HalfOpenConn interface {
 	net.Conn
+	CloseRead() error
+	CloseWrite() error
+}
+
+type CloseWrite interface {
+	CloseWrite() error
+}
+
+type CloseRead interface {
+	CloseRead() error
+}
+
+type Connection interface {
+	HalfOpenConn
 	GetConnectionID() uint32
 	getOrderedRecvQueue() chan block.Block
 	getRecvQueue() chan block.Block
@@ -16,7 +31,7 @@ type Connection interface {
 	RecvBlock(block.Block)
 
 	SendConnect(address string)
-	SendDisconnect()
+	SendDisconnect(uint8)
 
 	OrderedRelay(connection Connection) // Run orderedRelay infinitely
 	Stop()                              // Stop all related relay and remove itself from connectionPool
@@ -62,11 +77,13 @@ func (bc *baseConnection) SendConnect(address string) {
 	bc.sendQueue <- blk
 }
 
-func (bc *baseConnection) SendDisconnect() {
+func (bc *baseConnection) SendDisconnect(shutdownType uint8) {
 	bc.logger.Debugln("Send disconnect block.")
-	blk := bc.blockProcessor.packDisconnect(bc.connectionID)
+	blk := bc.blockProcessor.packDisconnect(bc.connectionID, shutdownType)
 	bc.sendQueue <- blk
-	bc.Stop()
+	if shutdownType == block.ShutdownBoth {
+		bc.Stop()
+	}
 }
 
 func (bc *baseConnection) sendData(data []byte) {

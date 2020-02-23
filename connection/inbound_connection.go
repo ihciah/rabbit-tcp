@@ -3,13 +3,14 @@ package connection
 import (
 	"context"
 	"fmt"
-	"github.com/ihciah/rabbit-tcp/block"
-	"github.com/ihciah/rabbit-tcp/logger"
-	"go.uber.org/atomic"
 	"io"
 	"math/rand"
 	"net"
 	"time"
+
+	"github.com/ihciah/rabbit-tcp/block"
+	"github.com/ihciah/rabbit-tcp/logger"
+	"go.uber.org/atomic"
 )
 
 type InboundConnection struct {
@@ -118,6 +119,7 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 func (c *InboundConnection) readBlock(blk *block.Block, readN *int, b []byte) (err error) {
 	switch blk.Type {
 	case block.TypeDisconnect:
+		// TODO: decide shutdown type
 		c.closed.Store(true)
 		return io.EOF
 	case block.TypeData:
@@ -143,8 +145,18 @@ func (c *InboundConnection) Write(b []byte) (n int, err error) {
 
 func (c *InboundConnection) Close() error {
 	if c.closed.CAS(false, true) {
-		c.SendDisconnect()
+		c.SendDisconnect(block.ShutdownBoth)
 	}
+	return nil
+}
+
+func (c *InboundConnection) CloseRead() error {
+	c.SendDisconnect(block.ShutdownRead)
+	return nil
+}
+
+func (c *InboundConnection) CloseWrite() error {
+	c.SendDisconnect(block.ShutdownWrite)
 	return nil
 }
 

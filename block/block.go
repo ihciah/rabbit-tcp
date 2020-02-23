@@ -2,14 +2,19 @@ package block
 
 import (
 	"encoding/binary"
-	"go.uber.org/atomic"
 	"io"
+
+	"go.uber.org/atomic"
 )
 
 const (
 	TypeConnect = iota
 	TypeDisconnect
 	TypeData
+
+	ShutdownRead = iota
+	ShutdownWrite
+	ShutdownBoth
 
 	HeaderSize = 1 + 4 + 4 + 4
 	DataSize   = 16*1024 - 13
@@ -96,12 +101,12 @@ func NewDataBlocks(connectID uint32, blockID *atomic.Uint32, data []byte) []Bloc
 	return blocks
 }
 
-func NewDisconnectBlock(connectID uint32, blockID uint32) Block {
+func NewDisconnectBlock(connectID uint32, blockID uint32, shutdownType uint8) Block {
 	return Block{
 		Type:         TypeDisconnect,
 		ConnectionID: connectID,
 		BlockID:      blockID,
-		BlockLength:  0,
-		BlockData:    make([]byte, 0),
+		BlockLength:  1,
+		BlockData:    []byte{shutdownType},
 	}
 }

@@ -1,13 +1,15 @@
 package client
 
 import (
-	"context"
+	"io"
+	"net"
+	"sync"
+	"time"
+
+	"github.com/ihciah/rabbit-tcp/connection"
 	"github.com/ihciah/rabbit-tcp/logger"
 	"github.com/ihciah/rabbit-tcp/peer"
 	"github.com/ihciah/rabbit-tcp/tunnel"
-	"io"
-	"net"
-	"time"
 )
 
 type Client struct {
@@ -22,7 +24,7 @@ func NewClient(tunnelNum int, endpoint string, cipher tunnel.Cipher) Client {
 	}
 }
 
-func (c *Client) Dial(address string) net.Conn {
+func (c *Client) Dial(address string) connection.HalfOpenConn {
 	return c.peer.Dial(address)
 }
 
@@ -40,28 +42,38 @@ func (c *Client) ServeForward(listen, dest string) error {
 		go func() {
 			c.logger.Infoln("Accepted a connection.")
 			connProxy := c.Dial(dest)
-			biRelay(conn, connProxy, c.logger)
+			biRelay(conn.(*net.TCPConn), connProxy, c.logger)
 		}()
 	}
 }
 
-func biRelay(left, right net.Conn, logger *logger.Logger) {
-	ctx, cancel := context.WithCancel(context.Background())
-	go relay(left, right, cancel, logger)
-	go relay(right, left, cancel, logger)
-	<-ctx.Done()
+func biRelay(left, right connection.HalfOpenConn, logger *logger.Logger) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go relay(left, right, &wg, logger, "local <- tunnel")
+	wg.Add(1)
+	go relay(right, left, &wg, logger, "local -> tunnel")
+	wg.Wait()
+	// logger.Errorf("===========> Close client biRelay")
 	_ = left.Close()
 	_ = right.Close()
 }
 
-func relay(dst, src net.Conn, cancel context.CancelFunc, logger *logger.Logger) {
+func relay(dst, src connection.HalfOpenConn, wg *sync.WaitGroup, logger *logger.Logger, label string) {
+	defer wg.Done()
 	_, err := io.Copy(dst, src)
 	if err != nil {
 		_ = dst.SetDeadline(time.Now())
 		_ = src.SetDeadline(time.Now())
-		cancel()
+		_ = dst.Close()
+		_ = src.Close()
 		if err != io.EOF {
 			logger.Errorf("Error when relay client: %v.\n", err)
 		}
+	} else {
+		// logger.Debugf("!!!!!!!!!!!!!!!! %s : dst close write", label)
+		dst.CloseWrite()
+		// logger.Debugf("!!!!!!!!!!!!!!!! %s : src close read", label)
+		src.CloseRead()
 	}
 }

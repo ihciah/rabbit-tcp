@@ -2,10 +2,11 @@ package connection
 
 import (
 	"context"
+	"time"
+
 	"github.com/ihciah/rabbit-tcp/block"
 	"github.com/ihciah/rabbit-tcp/logger"
 	"go.uber.org/atomic"
-	"time"
 )
 
 // 1. Join blocks from chan to connection orderedRecvQueue
@@ -69,7 +70,7 @@ func (x *blockProcessor) OrderedRelay(connection Connection) {
 		case <-time.After(PacketWaitTimeoutSec * time.Second):
 			x.logger.Debugf("Packet wait time exceed of Connection %d.\n", connection.GetConnectionID())
 			if x.recvBlockID == x.lastRecvBlockID {
-				x.logger.Debugf("Connection %d is not in waiting status, continue.\n", connection.GetConnectionID())
+				x.logger.Debugf("recvBlockId == lastRecvBlockID(%d), but Connection %d is not in waiting status, continue.\n", x.recvBlockID, connection.GetConnectionID())
 				continue
 			}
 			x.logger.Warnf("Connection %d is going to be killed due to timeout.\n", connection.GetConnectionID())
@@ -89,6 +90,6 @@ func (x *blockProcessor) packConnect(address string, connectionID uint32) block.
 	return block.NewConnectBlock(connectionID, x.sendBlockID.Inc()-1, address)
 }
 
-func (x *blockProcessor) packDisconnect(connectionID uint32) block.Block {
-	return block.NewDisconnectBlock(connectionID, x.sendBlockID.Inc()-1)
+func (x *blockProcessor) packDisconnect(connectionID uint32, shutdownType uint8) block.Block {
+	return block.NewDisconnectBlock(connectionID, x.sendBlockID.Inc()-1, shutdownType)
 }

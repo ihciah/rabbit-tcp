@@ -3,17 +3,18 @@ package connection
 import (
 	"context"
 	"fmt"
-	"github.com/ihciah/rabbit-tcp/block"
-	"github.com/ihciah/rabbit-tcp/logger"
-	"go.uber.org/atomic"
 	"io"
 	"net"
 	"time"
+
+	"github.com/ihciah/rabbit-tcp/block"
+	"github.com/ihciah/rabbit-tcp/logger"
+	"go.uber.org/atomic"
 )
 
 type OutboundConnection struct {
 	baseConnection
-	net.Conn
+	HalfOpenConn
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -37,15 +38,15 @@ func NewOutboundConnection(connectionID uint32, sendQueue chan<- block.Block, ct
 }
 
 func (oc *OutboundConnection) closeThenCancelWithOnceSend() {
-	oc.Conn.Close()
+	oc.HalfOpenConn.Close()
 	oc.cancel()
 	if oc.closed.CAS(false, true) {
-		oc.SendDisconnect()
+		oc.SendDisconnect(block.ShutdownBoth)
 	}
 }
 
 func (oc *OutboundConnection) closeThenCancel() {
-	oc.Conn.Close()
+	oc.HalfOpenConn.Close()
 	oc.cancel()
 }
 
@@ -53,11 +54,11 @@ func (oc *OutboundConnection) closeThenCancel() {
 func (oc *OutboundConnection) RecvRelay() {
 	recvBuffer := make([]byte, OutboundRecvBuffer)
 	for {
-		oc.Conn.SetReadDeadline(time.Now().Add(OutboundBlockTimeoutSec * time.Second))
-		n, err := oc.Conn.Read(recvBuffer)
+		oc.HalfOpenConn.SetReadDeadline(time.Now().Add(OutboundBlockTimeoutSec * time.Second))
+		n, err := oc.HalfOpenConn.Read(recvBuffer)
 		if err == nil {
 			oc.sendData(recvBuffer[:n])
-			oc.Conn.SetReadDeadline(time.Time{})
+			oc.HalfOpenConn.SetReadDeadline(time.Time{})
 		} else if err == io.EOF {
 			oc.logger.Debugln("EOF received from outbound connection.")
 			oc.closeThenCancelWithOnceSend()
@@ -73,7 +74,7 @@ func (oc *OutboundConnection) RecvRelay() {
 		case <-oc.ctx.Done():
 			// Should read all before leave, or packet will be lost
 			for {
-				n, err := oc.Conn.Read(recvBuffer)
+				n, err := oc.HalfOpenConn.Read(recvBuffer)
 				if err == nil {
 					oc.logger.Debugln("Data received from outbound connection successfully after close.")
 					oc.sendData(recvBuffer[:n])
@@ -100,17 +101,25 @@ func (oc *OutboundConnection) SendRelay() {
 				continue
 			case block.TypeData:
 				oc.logger.Debugln("Send out DATA bytes.")
-				oc.Conn.SetWriteDeadline(time.Now().Add(OutboundBlockTimeoutSec * time.Second))
-				_, err := oc.Conn.Write(blk.BlockData)
+				oc.HalfOpenConn.SetWriteDeadline(time.Now().Add(OutboundBlockTimeoutSec * time.Second))
+				_, err := oc.HalfOpenConn.Write(blk.BlockData)
 				if err == nil {
-					oc.Conn.SetWriteDeadline(time.Time{})
+					oc.HalfOpenConn.SetWriteDeadline(time.Time{})
 				} else {
 					oc.logger.Errorf("Error when send relay outbound connection: %v\n.", err)
 					oc.closeThenCancelWithOnceSend()
 				}
 			case block.TypeDisconnect:
-				oc.logger.Debugln("Send out DISCONNECT action.")
-				oc.closeThenCancel()
+				if blk.BlockData[0] == block.ShutdownRead {
+					oc.logger.Debugf("CloseRead for remote connection\n")
+					oc.HalfOpenConn.CloseRead()
+				} else if blk.BlockData[0] == block.ShutdownWrite {
+					oc.logger.Debugf("CloseWrite for remote connection\n")
+					oc.HalfOpenConn.CloseWrite()
+				} else {
+					oc.logger.Debugln("Send out DISCONNECT action.")
+					oc.closeThenCancel()
+				}
 			}
 		case <-oc.ctx.Done():
 			oc.closeThenCancelWithOnceSend()
@@ -129,18 +138,18 @@ func (oc *OutboundConnection) RecvBlock(blk block.Block) {
 
 func (oc *OutboundConnection) connect(address string) {
 	oc.logger.Debugln("Send out CONNECTION action.")
-	if !oc.closed.Load() || oc.Conn != nil {
+	if !oc.closed.Load() || oc.HalfOpenConn != nil {
 		return
 	}
 	rawConn, err := net.Dial("tcp", address)
 	if err == nil {
 		oc.logger.Infof("Dial to %s successfully.\n", address)
-		oc.Conn = rawConn
+		oc.HalfOpenConn = rawConn.(*net.TCPConn)
 		oc.closed.Toggle()
 		go oc.RecvRelay()
 		go oc.SendRelay()
 	} else {
 		oc.logger.Warnf("Error when dial to %s: %v.\n", address, err)
-		oc.SendDisconnect()
+		oc.SendDisconnect(block.ShutdownBoth)
 	}
 }
