@@ -6,6 +6,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"syscall"
 	"time"
 
 	"github.com/ihciah/rabbit-tcp/block"
@@ -19,6 +20,9 @@ type InboundConnection struct {
 
 	writeCtx context.Context
 	readCtx  context.Context
+
+	readClosed  *atomic.Bool
+	writeClosed *atomic.Bool
 }
 
 func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, removeFromPool context.CancelFunc) Connection {
@@ -33,9 +37,11 @@ func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, rem
 			orderedRecvQueue: make(chan block.Block, OrderedRecvQueueSize),
 			logger:           logger.NewLogger(fmt.Sprintf("[InboundConnection-%d]", connectionID)),
 		},
-		dataBuffer: NewByteRingBuffer(block.MaxSize),
-		readCtx:    ctx,
-		writeCtx:   ctx,
+		dataBuffer:  NewByteRingBuffer(block.MaxSize),
+		readCtx:     ctx,
+		writeCtx:    ctx,
+		readClosed:  atomic.NewBool(false),
+		writeClosed: atomic.NewBool(false),
 	}
 	c.logger.Infof("InboundConnection %d created.\n", connectionID)
 	return &c
@@ -53,7 +59,7 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 		}
 	}
 
-	if c.closed.Load() {
+	if c.closed.Load() || c.readClosed.Load() {
 		// Connection is closed, should read all data left in channel
 		for {
 			select {
@@ -120,8 +126,16 @@ func (c *InboundConnection) readBlock(blk *block.Block, readN *int, b []byte) (e
 	switch blk.Type {
 	case block.TypeDisconnect:
 		// TODO: decide shutdown type
-		c.closed.Store(true)
-		return io.EOF
+		if blk.BlockData[0] == block.ShutdownBoth {
+			c.closed.Store(true)
+			return io.EOF
+		} else if blk.BlockData[0] == block.ShutdownWrite {
+			c.readClosed.Store(true)
+			return io.EOF
+		} else if blk.BlockData[0] == block.ShutdownRead {
+			c.writeClosed.Store(true)
+			return nil
+		}
 	case block.TypeData:
 		dst := b[*readN:]
 		if len(dst) < len(blk.BlockData) {
@@ -139,6 +153,9 @@ func (c *InboundConnection) readBlock(blk *block.Block, readN *int, b []byte) (e
 func (c *InboundConnection) Write(b []byte) (n int, err error) {
 	// TODO: tag all blocks from b using WaitGroup
 	// TODO: and wait all blocks sent?
+	if c.writeClosed.Load() || c.closed.Load() {
+		return 0, syscall.EINVAL
+	}
 	c.sendData(b)
 	return len(b), nil
 }
