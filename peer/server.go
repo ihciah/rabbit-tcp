@@ -19,8 +19,8 @@ func NewServerPeerWithID(peerID uint32, peerContext context.Context, removePeerF
 	return ServerPeer{
 		Peer: Peer{
 			peerID:         peerID,
-			connectionPool: *connectionPool,
-			tunnelPool:     *tunnelPool,
+			connectionPool: connectionPool,
+			tunnelPool:     tunnelPool,
 			ctx:            peerContext,
 			cancel:         removePeerFunc,
 		},

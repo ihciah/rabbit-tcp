@@ -45,7 +45,9 @@ func (x *blockProcessor) OrderedRelay(connection Connection) {
 			if x.recvBlockID == blk.BlockID {
 				// Can send directly
 				x.logger.Debugf("Send Block %d directly\n", blk.BlockID)
-				connection.getOrderedRecvQueue() <- blk
+				if !x.pushOrdered(connection, blk) {
+					return
+				}
 				x.recvBlockID++
 				for {
 					blk, ok := x.cache[x.recvBlockID]
@@ -53,7 +55,9 @@ func (x *blockProcessor) OrderedRelay(connection Connection) {
 						break
 					}
 					x.logger.Debugf("Send Block %d from cache\n", blk.BlockID)
-					connection.getOrderedRecvQueue() <- blk
+					if !x.pushOrdered(connection, blk) {
+						return
+					}
 					delete(x.cache, x.recvBlockID)
 					x.recvBlockID++
 				}
@@ -79,6 +83,18 @@ func (x *blockProcessor) OrderedRelay(connection Connection) {
 			x.logger.Infof("Ordered Relay of Connection %d stopped.\n", connection.GetConnectionID())
 			return
 		}
+	}
+}
+
+// pushOrdered hands blk to the reader side; returns false if the connection was stopped
+// meanwhile (the reader may never come back, so blocking here would leak this goroutine).
+func (x *blockProcessor) pushOrdered(connection Connection, blk block.Block) bool {
+	select {
+	case connection.getOrderedRecvQueue() <- blk:
+		return true
+	case <-x.relayCtx.Done():
+		x.logger.Infof("Ordered Relay of Connection %d stopped.\n", connection.GetConnectionID())
+		return false
 	}
 }
 

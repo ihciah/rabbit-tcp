@@ -6,6 +6,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,8 +19,14 @@ type InboundConnection struct {
 	baseConnection
 	dataBuffer ByteRingBuffer
 
-	writeCtx context.Context
-	readCtx  context.Context
+	// Deadlines are set from other goroutines (e.g. client relay) while Read is blocked,
+	// so the contexts are guarded by deadlineMu.
+	deadlineMu  sync.Mutex
+	baseCtx     context.Context
+	readCtx     context.Context
+	readCancel  context.CancelFunc
+	writeCtx    context.Context
+	writeCancel context.CancelFunc
 
 	readClosed  *atomic.Bool
 	writeClosed *atomic.Bool
@@ -38,6 +45,7 @@ func NewInboundConnection(sendQueue chan<- block.Block, ctx context.Context, rem
 			logger:           logger.NewLogger(fmt.Sprintf("[InboundConnection-%d]", connectionID)),
 		},
 		dataBuffer:  NewByteRingBuffer(block.MaxSize),
+		baseCtx:     ctx,
 		readCtx:     ctx,
 		writeCtx:    ctx,
 		readClosed:  atomic.NewBool(false),
@@ -91,7 +99,7 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 					return 0, err
 				}
 			}
-		case <-c.readCtx.Done():
+		case <-c.readDone():
 			c.logger.Infoln("ReadDeadline exceeded.")
 			if readN != 0 {
 				return readN, nil
@@ -113,7 +121,7 @@ func (c *InboundConnection) Read(b []byte) (n int, err error) {
 			if err == io.EOF || readN == len(b) {
 				return readN, nil
 			}
-		case <-c.readCtx.Done():
+		case <-c.readDone():
 			c.logger.Infoln("ReadDeadline exceeded.")
 			return readN, nil
 		default:
@@ -195,11 +203,33 @@ func (c *InboundConnection) SetDeadline(t time.Time) error {
 }
 
 func (c *InboundConnection) SetReadDeadline(t time.Time) error {
-	c.readCtx, _ = context.WithDeadline(context.Background(), t)
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
+	c.readCtx, c.readCancel = c.deadlineCtx(t, c.readCancel)
 	return nil
 }
 
 func (c *InboundConnection) SetWriteDeadline(t time.Time) error {
-	c.writeCtx, _ = context.WithDeadline(context.Background(), t)
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
+	c.writeCtx, c.writeCancel = c.deadlineCtx(t, c.writeCancel)
 	return nil
+}
+
+// deadlineCtx derives a deadline context from the connection context (so stopping the
+// connection still wakes readers); a zero t means no deadline, as in net.Conn.
+func (c *InboundConnection) deadlineCtx(t time.Time, prev context.CancelFunc) (context.Context, context.CancelFunc) {
+	if prev != nil {
+		prev()
+	}
+	if t.IsZero() {
+		return c.baseCtx, nil
+	}
+	return context.WithDeadline(c.baseCtx, t)
+}
+
+func (c *InboundConnection) readDone() <-chan struct{} {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
+	return c.readCtx.Done()
 }

@@ -133,7 +133,7 @@ func (oc *OutboundConnection) RecvBlock(blk block.Block) {
 		address := string(blk.BlockData)
 		go oc.connect(address)
 	}
-	oc.recvQueue <- blk
+	oc.deliver(blk)
 }
 
 func (oc *OutboundConnection) connect(address string) {

@@ -12,8 +12,8 @@ import (
 
 type Peer struct {
 	peerID         uint32
-	connectionPool connection_pool.ConnectionPool
-	tunnelPool     tunnel_pool.TunnelPool
+	connectionPool *connection_pool.ConnectionPool
+	tunnelPool     *tunnel_pool.TunnelPool
 	ctx            context.Context
 	cancel         context.CancelFunc
 }

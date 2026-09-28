@@ -31,8 +31,8 @@ func newClientPeerWithID(peerID uint32, tunnelNum int, endpoint string, cipher t
 	return ClientPeer{
 		Peer: Peer{
 			peerID:         peerID,
-			connectionPool: *connectionPool,
-			tunnelPool:     *tunnelPool,
+			connectionPool: connectionPool,
+			tunnelPool:     tunnelPool,
 			ctx:            peerCtx,
 			cancel:         removePeerFunc,
 		},

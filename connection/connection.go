@@ -69,7 +69,19 @@ func (bc *baseConnection) getOrderedRecvQueue() chan block.Block {
 }
 
 func (bc *baseConnection) RecvBlock(blk block.Block) {
-	bc.recvQueue <- blk
+	bc.deliver(blk)
+}
+
+// deliver puts blk into recvQueue unless the connection has been stopped.
+// ConnectionPool.recvRelay is a single goroutine shared by all connections of a peer;
+// if it blocked forever on a stopped connection whose OrderedRelay has already exited,
+// every connection and tunnel of the peer would freeze (issue #17).
+func (bc *baseConnection) deliver(blk block.Block) {
+	select {
+	case bc.recvQueue <- blk:
+	case <-bc.blockProcessor.relayCtx.Done():
+		bc.logger.Debugf("Drop block %d for stopped connection.\n", blk.BlockID)
+	}
 }
 
 func (bc *baseConnection) SendConnect(address string) {
